@@ -1,0 +1,14 @@
+[package]
+name = "multi-party-ed25519"
+version = "0.1.0"
+authors = [
+    "Omer <omer@kzencorp.com>",
+    "Gary <gary@kzencorp.com>"
+]
+
+[lib]
+crate-type = ["dylib"]
+
+[dependencies]
+cryptography-utils = { git = "https://github.com/KZen-networks/cryptography-utils" , branch = "rewrite_ec_abstract", features =  ["curve25519"]}
+hex = "0.3.2"
