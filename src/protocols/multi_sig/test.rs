@@ -11,7 +11,7 @@
     License as published by the Free Software Foundation, either
     version 3 of the License, or (at your option) any later version.
 
-    @license GPL-3.0+ <https://github.com/KZen-networks/multisig-schnorr/blob/master/LICENSE>
+    @license GPL-3.0+ <https://github.com/KZen-networks/multi-party-ed25519/blob/master/LICENSE>
 */
 
 #[cfg(test)]
