@@ -1,5 +1,5 @@
 /*
-    Multisig Schnorr
+    Multisig ed25519
 
     Copyright 2018 by Kzen Networks
 
@@ -13,5 +13,5 @@
 
     @license GPL-3.0+ <https://github.com/KZen-networks/multisig-schnorr/blob/master/LICENSE>
 */
-// Simple Schnorr {2,2}-Signatures (https://eprint.iacr.org/2018/068.pdf, https://eprint.iacr.org/2018/483.pdf subsection 5.1)
+// simple ed25519 based on rfc8032
 pub mod multi_sig;

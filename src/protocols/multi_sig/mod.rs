@@ -1,5 +1,5 @@
 /*
-    Multisig Schnorr
+    Multisig ed25519
 
     Copyright 2018 by Kzen Networks
 
@@ -14,9 +14,9 @@
     @license GPL-3.0+ <https://github.com/KZen-networks/multisig-schnorr/blob/master/LICENSE>
 */
 
-//! Simple Schnorr {2,2}-Signatures
+//! Simple ed25519
 //!
-//! See https://eprint.iacr.org/2018/068.pdf, https://eprint.iacr.org/2018/483.pdf subsection 5.1
+//! See https://tools.ietf.org/html/rfc8032
 use cryptography_utils::{BigInt, FE, GE, PK, SK};
 
 use cryptography_utils::cryptographic_primitives::proofs::*;

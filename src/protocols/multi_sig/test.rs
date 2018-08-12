@@ -1,5 +1,5 @@
 /*
-    Multisig Schnorr
+    Multisig ed25519
 
     Copyright 2018 by Kzen Networks
 
