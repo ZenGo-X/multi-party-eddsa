@@ -36,6 +36,12 @@ pub struct ExpendedPrivateKey {
     private_key: FE,
 }
 
+#[derive(Debug)]
+pub struct KeyAgg {
+    pub apk: GE,
+    pub hash: FE,
+}
+
 pub struct KeyPair {
     pub public_key: GE,
     expended_private_key: ExpendedPrivateKey,
@@ -96,6 +102,57 @@ impl KeyPair {
             },
         }
     }
+
+
+
+    pub fn key_aggregation_n(pks: &Vec<GE>, party_index: &usize) -> KeyAgg {
+        let bn_1 = BigInt::from(1);
+        let x_coor_vec: Vec<BigInt> = (0..pks.len())
+            .into_iter()
+            .map(|i| pks[i].get_x_coor_as_big_int())
+            .collect();
+        let hash_vec: Vec<BigInt> = x_coor_vec
+            .iter()
+            .map(|pk| {
+                let mut vec = Vec::new();
+                vec.push(&bn_1);
+                vec.push(pk);
+                for i in 0..pks.len() {
+                    vec.push(&x_coor_vec[i]);
+                }
+                HSha512::create_hash(vec)
+            }).collect();
+
+        let apk_vec: Vec<GE> = pks
+            .iter()
+            .zip(&hash_vec)
+            .map(|(pk, hash)| {
+                let hash_t: FE = ECScalar::from_big_int(&hash);
+                let mut pki: GE = pk.clone();
+                let a_i = pki.scalar_mul(&hash_t.get_element());
+                a_i
+            }).collect();
+
+        let mut apk_vec_2_n = apk_vec.clone();
+        let pk1 = apk_vec_2_n.remove(0);
+        let sum = apk_vec_2_n
+            .iter()
+            .fold(pk1, |acc, pk| acc.add_point(&pk.get_element()));
+
+        KeyAgg {
+            apk: sum,
+            hash: ECScalar::from_big_int(&hash_vec[*party_index].clone()),
+        }
+    }
+
+}
+#[derive(Debug)]
+pub struct EphemeralKey {
+    r: FE,
+    pub R: GE,
+    pub commitment: BigInt,
+    blind_factor: BigInt,
+
 }
 
 #[derive(Debug)]
@@ -105,7 +162,52 @@ pub struct Signature {
 }
 
 impl Signature {
-    pub fn sign(message: &[u8], keys: &KeyPair) -> Signature {
+
+
+
+    pub fn create_ephemeral_key_and_commit(keys: &KeyPair, message: &[u8]) -> EphemeralKey{
+        let r = HSha512::create_hash(vec![
+            &BigInt::from(2),
+            &keys.expended_private_key.prefix.to_big_int(),
+            &BigInt::from(message),
+        ]);
+        let r: FE = ECScalar::from_big_int(&r);
+        let ec_point: GE = ECPoint::new();
+        let R: GE= ec_point.scalar_mul(&r.get_element());
+        let (commitment, blind_factor) =
+            HashCommitment::create_commitment(&R.get_x_coor_as_big_int());
+        EphemeralKey{
+            r,
+            R ,
+            commitment,
+            blind_factor
+        }
+    }
+    pub fn k(R_tot: &GE, apk: &GE, message: &[u8]) ->FE{
+        let k = HSha512::create_hash(vec![
+            &R_tot.bytes_compressed_to_big_int(),
+            &apk.bytes_compressed_to_big_int(),
+            &BigInt::from(message),
+        ]);
+        let k: FE = ECScalar::from_big_int(&k);
+        k
+    }
+    pub fn get_R_tot(mut R: Vec<GE>) -> GE{
+        let R1 = R.remove(0);
+        let sum = R
+            .iter()
+            .fold(R1, |acc: GE, Ri: &GE| acc.add_point(&Ri.get_element()));
+        sum
+    }
+
+    pub fn partial_sign(r: &FE, keys: &KeyPair, k: &FE, a: &FE, R_tot: &GE ) -> Signature{
+        let k_mul_sk = k.mul(&keys.expended_private_key.private_key.get_element());
+        let k_mul_sk_mul_ai = k_mul_sk.mul(&a.get_element());
+        let s = r.add(&k_mul_sk_mul_ai.get_element());
+        Signature { R: R_tot.clone(), s }
+    }
+
+    pub fn sign_single( message: &[u8], keys: &KeyPair) -> Signature {
         let temps: FE = ECScalar::new_random();
         let curve_order = temps.get_q();
         let r = HSha512::create_hash(vec![
@@ -125,6 +227,20 @@ impl Signature {
         let s = r.add(&k_mul_sk.get_element());
         Signature { R, s }
     }
+
+    pub fn add_signature_parts(mut sigs: Vec<Signature>) -> Signature {
+        //test equality of group elements:
+        let candidate_R = &sigs[0].R.get_element();
+        assert!(sigs.iter().all(|x| &x.R.get_element() == candidate_R));
+        //sum s part of the signature:
+
+        let s1 = sigs.remove(0);
+        let sum = sigs
+            .iter()
+            .fold(s1.s, |acc: FE, si: &Signature| acc.add(&si.s.get_element()));
+        Signature{s: sum, R: s1.R}
+    }
+
 }
 
 pub fn verify(signature: &Signature, message: &[u8], public_key: &GE) -> Result<(), ProofError> {
@@ -151,4 +267,11 @@ pub fn verify(signature: &Signature, message: &[u8], public_key: &GE) -> Result<
     }
 }
 
+pub fn test_com(r_to_test: &GE, blind_factor: &BigInt, comm: &BigInt) -> bool {
+    let computed_comm = &HashCommitment::create_commitment_with_user_defined_randomness(
+        &r_to_test.get_x_coor_as_big_int(),
+        blind_factor,
+    );
+    computed_comm == comm
+}
 mod test;
