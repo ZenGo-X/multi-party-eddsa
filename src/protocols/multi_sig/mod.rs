@@ -17,8 +17,7 @@
 //! Simple ed25519
 //!
 //! See https://tools.ietf.org/html/rfc8032
-use cryptography_utils::{BigInt, FE, GE, PK, SK};
-
+use cryptography_utils::{BigInt, FE, GE};
 use cryptography_utils::cryptographic_primitives::proofs::*;
 use cryptography_utils::elliptic::curves::traits::*;
 
@@ -49,10 +48,10 @@ pub struct KeyPair {
 
 impl KeyPair {
     pub fn create() -> KeyPair {
-        let ec_point: GE = ECPoint::new();
+        let ec_point: GE = ECPoint::generator();
         let mut hash: [u8; 64] = [0u8; 64];
         let sk: FE = ECScalar::new_random();
-        let h = HSha512::create_hash(vec![&sk.to_big_int()]);
+        let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
         let h_vec = BigInt::to_vec(&h);
         let mut private_key: [u8; 32] = [0u8; 32];
         let mut prefix: [u8; 32] = [0u8; 32];
@@ -63,9 +62,9 @@ impl KeyPair {
         private_key[31] |= 64;
         let private_key = &private_key[..private_key.len()];
         let prefix = &prefix[..prefix.len()];
-        let private_key: FE = ECScalar::from_big_int(&BigInt::from(private_key));
-        let prefix: FE = ECScalar::from_big_int(&BigInt::from(prefix));
-        let public_key = ec_point.scalar_mul(&private_key.get_element());
+        let private_key: FE = ECScalar::from(&BigInt::from(private_key));
+        let prefix: FE = ECScalar::from(&BigInt::from(prefix));
+        let public_key = ec_point * &private_key;
         KeyPair {
             public_key,
             expended_private_key: ExpendedPrivateKey {
@@ -76,11 +75,11 @@ impl KeyPair {
     }
 
     pub fn create_from_private_key(secret: &BigInt) -> KeyPair {
-        let sk: FE = ECScalar::from_big_int(secret);
-        let ec_point: GE = ECPoint::new();
+        let sk: FE = ECScalar::from(secret);
+        let ec_point: GE = ECPoint::generator();
         let mut hash: [u8; 64] = [0u8; 64];
         let sk: FE = ECScalar::new_random();
-        let h = HSha512::create_hash(vec![&sk.to_big_int()]);
+        let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
         let h_vec = BigInt::to_vec(&h);
         let mut private_key: [u8; 32] = [0u8; 32];
         let mut prefix: [u8; 32] = [0u8; 32];
@@ -91,9 +90,9 @@ impl KeyPair {
         private_key[31] |= 64;
         let private_key = &private_key[..private_key.len()];
         let prefix = &prefix[..prefix.len()];
-        let private_key: FE = ECScalar::from_big_int(&BigInt::from(private_key));
-        let prefix: FE = ECScalar::from_big_int(&BigInt::from(prefix));
-        let public_key = ec_point.scalar_mul(&private_key.get_element());
+        let private_key: FE = ECScalar::from(&BigInt::from(private_key));
+        let prefix: FE = ECScalar::from(&BigInt::from(prefix));
+        let public_key = ec_point * &private_key;
         KeyPair {
             public_key,
             expended_private_key: ExpendedPrivateKey {
@@ -109,7 +108,7 @@ impl KeyPair {
         let bn_1 = BigInt::from(1);
         let x_coor_vec: Vec<BigInt> = (0..pks.len())
             .into_iter()
-            .map(|i| pks[i].get_x_coor_as_big_int())
+            .map(|i| pks[i].x_coor())
             .collect();
         let hash_vec: Vec<BigInt> = x_coor_vec
             .iter()
@@ -120,28 +119,28 @@ impl KeyPair {
                 for i in 0..pks.len() {
                     vec.push(&x_coor_vec[i]);
                 }
-                HSha512::create_hash(vec)
+                HSha512::create_hash(&vec)
             }).collect();
 
         let apk_vec: Vec<GE> = pks
             .iter()
             .zip(&hash_vec)
             .map(|(pk, hash)| {
-                let hash_t: FE = ECScalar::from_big_int(&hash);
+                let hash_t: FE = ECScalar::from(&hash);
                 let mut pki: GE = pk.clone();
-                let a_i = pki.scalar_mul(&hash_t.get_element());
+                let a_i = pki * &hash_t;
                 a_i
             }).collect();
-
+ //TODO: remove clones
         let mut apk_vec_2_n = apk_vec.clone();
         let pk1 = apk_vec_2_n.remove(0);
         let sum = apk_vec_2_n
             .iter()
-            .fold(pk1, |acc, pk| acc.add_point(&pk.get_element()));
+            .fold(pk1, |acc, pk| acc + pk);
 
         KeyAgg {
             apk: sum,
-            hash: ECScalar::from_big_int(&hash_vec[*party_index].clone()),
+            hash: ECScalar::from(&hash_vec[*party_index].clone()),
         }
     }
 
@@ -166,16 +165,16 @@ impl Signature {
 
 
     pub fn create_ephemeral_key_and_commit(keys: &KeyPair, message: &[u8]) -> EphemeralKey{
-        let r = HSha512::create_hash(vec![
+        let r = HSha512::create_hash(&vec![
             &BigInt::from(2),
             &keys.expended_private_key.prefix.to_big_int(),
             &BigInt::from(message),
         ]);
-        let r: FE = ECScalar::from_big_int(&r);
-        let ec_point: GE = ECPoint::new();
-        let R: GE= ec_point.scalar_mul(&r.get_element());
+        let r: FE = ECScalar::from(&r);
+        let ec_point: GE = ECPoint::generator();
+        let R: GE= ec_point* &r;
         let (commitment, blind_factor) =
-            HashCommitment::create_commitment(&R.get_x_coor_as_big_int());
+            HashCommitment::create_commitment(&R.x_coor());
         EphemeralKey{
             r,
             R ,
@@ -184,19 +183,19 @@ impl Signature {
         }
     }
     pub fn k(R_tot: &GE, apk: &GE, message: &[u8]) ->FE{
-        let k = HSha512::create_hash(vec![
+        let k = HSha512::create_hash(&vec![
             &R_tot.bytes_compressed_to_big_int(),
             &apk.bytes_compressed_to_big_int(),
             &BigInt::from(message),
         ]);
-        let k: FE = ECScalar::from_big_int(&k);
+        let k: FE = ECScalar::from(&k);
         k
     }
     pub fn get_R_tot(mut R: Vec<GE>) -> GE{
         let R1 = R.remove(0);
         let sum = R
             .iter()
-            .fold(R1, |acc: GE, Ri: &GE| acc.add_point(&Ri.get_element()));
+            .fold(R1, |acc: GE, Ri: &GE| acc + Ri);
         sum
     }
 
@@ -209,20 +208,20 @@ impl Signature {
 
     pub fn sign_single( message: &[u8], keys: &KeyPair) -> Signature {
         let temps: FE = ECScalar::new_random();
-        let curve_order = temps.get_q();
-        let r = HSha512::create_hash(vec![
+        let curve_order = temps.q();
+        let r = HSha512::create_hash(&vec![
             &keys.expended_private_key.prefix.to_big_int(),
             &BigInt::from(message),
         ]);
-        let r: FE = ECScalar::from_big_int(&r);
-        let ec_point: GE = ECPoint::new();
+        let r: FE = ECScalar::from(&r);
+        let ec_point: GE = ECPoint::generator();
         let R = ec_point.scalar_mul(&r.get_element());
-        let k = HSha512::create_hash(vec![
+        let k = HSha512::create_hash(&vec![
             &R.bytes_compressed_to_big_int(),
             &keys.public_key.bytes_compressed_to_big_int(),
             &BigInt::from(message),
         ]);
-        let k: FE = ECScalar::from_big_int(&k);
+        let k: FE = ECScalar::from(&k);
         let k_mul_sk = k.mul(&keys.expended_private_key.private_key.get_element());
         let s = r.add(&k_mul_sk.get_element());
         Signature { R, s }
@@ -244,22 +243,21 @@ impl Signature {
 }
 
 pub fn verify(signature: &Signature, message: &[u8], public_key: &GE) -> Result<(), ProofError> {
-    let k = HSha512::create_hash(vec![
+    let k = HSha512::create_hash(&vec![
         &signature.R.bytes_compressed_to_big_int(),
         &public_key.bytes_compressed_to_big_int(),
         &BigInt::from(message),
     ]);
 
-    let base_point: GE = ECPoint::new();
+    let base_point: GE = ECPoint::generator();
     let temps: FE = ECScalar::new_random();
-    let curve_order = temps.get_q();
-    //let curve_order_fe: FE = ECScalar::from_big_int(&curve_order);
-    let k_fe: FE = ECScalar::from_big_int(&k);
+    let curve_order = temps.q();
+    let k_fe: FE = ECScalar::from(&k);
     //let minus_k_fe = curve_order_fe.sub(&k_fe.get_element());
     let mut A: GE = public_key.clone();
-    let kA = A.scalar_mul(&k_fe.get_element());
-    let sG = base_point.scalar_mul(&signature.s.get_element());
-    let R_plus_kA = signature.R.add_point(&kA.get_element());
+    let kA = A*k_fe;
+    let sG = base_point * &signature.s;
+    let R_plus_kA = kA + &(signature.R);
     if R_plus_kA.get_element() == sG.get_element() {
         Ok(())
     } else {
@@ -269,7 +267,7 @@ pub fn verify(signature: &Signature, message: &[u8], public_key: &GE) -> Result<
 
 pub fn test_com(r_to_test: &GE, blind_factor: &BigInt, comm: &BigInt) -> bool {
     let computed_comm = &HashCommitment::create_commitment_with_user_defined_randomness(
-        &r_to_test.get_x_coor_as_big_int(),
+        &r_to_test.x_coor(),
         blind_factor,
     );
     computed_comm == comm
