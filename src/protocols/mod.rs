@@ -14,4 +14,6 @@
     @license GPL-3.0+ <https://github.com/KZen-networks/multi-party-ed25519/blob/master/LICENSE>
 */
 // simple ed25519 based on rfc8032
-pub mod multi_sig;
+// reference implementation: https://ed25519.cr.yp.to/python/ed25519.py
+pub mod aggsig;
+pub mod multisig;
