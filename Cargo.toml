@@ -10,5 +10,5 @@ authors = [
 crate-type = ["dylib"]
 
 [dependencies]
-cryptography-utils = { git = "https://github.com/KZen-networks/cryptography-utils" , features =  ["ed25519"]}
+curv = { git = "https://github.com/KZen-networks/curv" , features =  ["ed25519"]}
 hex = "0.3.2"

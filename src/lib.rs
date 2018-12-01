@@ -14,6 +14,6 @@
     @license GPL-3.0+ <https://github.com/KZen-networks/multi-party-ed25519/blob/master/LICENSE>
 */
 
-extern crate cryptography_utils;
+extern crate curv;
 
 pub mod protocols;

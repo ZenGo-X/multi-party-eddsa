@@ -19,16 +19,16 @@
 //! Simple ed25519
 //!
 //! See https://tools.ietf.org/html/rfc8032
-use cryptography_utils::cryptographic_primitives::proofs::*;
-use cryptography_utils::elliptic::curves::traits::*;
-use cryptography_utils::{BigInt, FE, GE};
+use curv::cryptographic_primitives::proofs::*;
+use curv::elliptic::curves::traits::*;
+use curv::{BigInt, FE, GE};
 
-use cryptography_utils::cryptographic_primitives::hashing::hash_sha512::HSha512;
-use cryptography_utils::cryptographic_primitives::hashing::traits::*;
+use curv::cryptographic_primitives::hashing::hash_sha512::HSha512;
+use curv::cryptographic_primitives::hashing::traits::*;
 
-use cryptography_utils::arithmetic::traits::Converter;
-use cryptography_utils::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
-use cryptography_utils::cryptographic_primitives::commitments::traits::*;
+use curv::arithmetic::traits::Converter;
+use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
+use curv::cryptographic_primitives::commitments::traits::*;
 
 #[derive(Debug)]
 pub struct ExpendedPrivateKey {
@@ -218,8 +218,8 @@ impl Signature {
 
     pub fn add_signature_parts(mut sigs: Vec<Signature>) -> Signature {
         //test equality of group elements:
-        let candidate_R = &sigs[0].R.get_element();
-        assert!(sigs.iter().all(|x| &x.R.get_element() == candidate_R));
+        let candidate_R = &sigs[0].R.clone();
+        assert!(sigs.iter().all(|x| &x.R == candidate_R));
         //sum s part of the signature:
 
         let s1 = sigs.remove(0);
@@ -244,7 +244,7 @@ pub fn verify(signature: &Signature, message: &[u8], public_key: &GE) -> Result<
     let kA = A * k_fe;
     let sG = base_point * &signature.s;
     let R_plus_kA = kA + &(signature.R);
-    if R_plus_kA.get_element() == sG.get_element() {
+    if R_plus_kA == sG {
         Ok(())
     } else {
         Err(ProofError)

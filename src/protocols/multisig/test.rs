@@ -17,11 +17,11 @@
 
 mod tests {
 
-    use cryptography_utils::cryptographic_primitives::hashing::hash_sha256::HSha256;
-    use cryptography_utils::cryptographic_primitives::hashing::merkle_tree::MT256;
-    use cryptography_utils::cryptographic_primitives::hashing::traits::Hash;
-    use cryptography_utils::elliptic::curves::traits::ECScalar;
-    use cryptography_utils::{BigInt, FE};
+    use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
+    use curv::cryptographic_primitives::hashing::merkle_tree::MT256;
+    use curv::cryptographic_primitives::hashing::traits::Hash;
+    use curv::elliptic::curves::traits::ECScalar;
+    use curv::{BigInt, FE};
     use protocols::multisig::{partial_sign, verify, EphKey, Keys, Signature};
 
     #[test]

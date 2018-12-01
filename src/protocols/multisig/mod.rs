@@ -17,12 +17,12 @@
 //! Schnorr {n,n}-Signatures based on Accountable-Subgroup Multisignatures
 //!
 //See (https://pdfs.semanticscholar.org/6bf4/f9450e7a8e31c106a8670b961de4735589cf.pdf)
-use cryptography_utils::arithmetic::traits::Converter;
-use cryptography_utils::cryptographic_primitives::hashing::hash_sha256::HSha256;
-use cryptography_utils::cryptographic_primitives::hashing::hash_sha512::HSha512;
-use cryptography_utils::cryptographic_primitives::hashing::traits::*;
-use cryptography_utils::elliptic::curves::traits::*;
-use cryptography_utils::{BigInt, FE, GE};
+use curv::arithmetic::traits::Converter;
+use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
+use curv::cryptographic_primitives::hashing::hash_sha512::HSha512;
+use curv::cryptographic_primitives::hashing::traits::*;
+use curv::elliptic::curves::traits::*;
+use curv::{BigInt, FE, GE};
 use protocols::multisig;
 
 // TODO: move to a common location to be used by all protocols.
@@ -179,7 +179,7 @@ pub fn verify<'a>(I: &GE, sig: &Signature, e: &FE) -> Result<(), &'a str> {
     let yG = base_point * y;
     let eI = I * e;
     let X_plus_eI = X + &eI;
-    if yG.get_element() == X_plus_eI.get_element() {
+    if yG == X_plus_eI {
         Ok(())
     } else {
         Err("error verification")

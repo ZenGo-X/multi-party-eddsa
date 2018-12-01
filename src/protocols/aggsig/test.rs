@@ -16,7 +16,7 @@
 
 #[cfg(test)]
 mod tests {
-    use cryptography_utils::GE;
+    use curv::GE;
     use protocols::aggsig::{test_com, verify, KeyPair, Signature};
 
     #[test]
