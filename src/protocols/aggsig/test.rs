@@ -3,7 +3,7 @@
 
     Copyright 2018 by Kzen Networks
 
-    This file is part of Multisig Schnorr library
+    This file is part of Multi party eddsa library
     (https://github.com/KZen-networks/multisig-schnorr)
 
     Multisig Schnorr is free software: you can redistribute
