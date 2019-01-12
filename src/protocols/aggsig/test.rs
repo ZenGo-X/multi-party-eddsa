@@ -36,23 +36,23 @@ mod tests {
         let party2_key = KeyPair::create();
 
         // round 1: send commitments to ephemeral public keys
-        let party1_ephemeral_key =
+        let (party1_ephemeral_key, party1_sign_first_message, party1_sign_second_message) =
             Signature::create_ephemeral_key_and_commit(&party1_key, &message);
-        let party2_ephemeral_key =
+        let (party2_ephemeral_key, party2_sign_first_message, party2_sign_second_message) =
             Signature::create_ephemeral_key_and_commit(&party2_key, &message);
 
-        let party1_commitment = &party1_ephemeral_key.commitment;
-        let party2_commitment = &party2_ephemeral_key.commitment;
+        let party1_commitment = &party1_sign_first_message.commitment;
+        let party2_commitment = &party2_sign_first_message.commitment;
 
         // round 2: send ephemeral public keys and check commitments
         assert!(test_com(
-            &party2_ephemeral_key.R,
-            &party2_ephemeral_key.blind_factor,
+            &party2_sign_second_message.R,
+            &party2_sign_second_message.blind_factor,
             party2_commitment
         ));
         assert!(test_com(
-            &party1_ephemeral_key.R,
-            &party1_ephemeral_key.blind_factor,
+            &party1_sign_second_message.R,
+            &party1_sign_second_message.blind_factor,
             party1_commitment
         ));
 
@@ -104,31 +104,31 @@ mod tests {
         let party3_key = KeyPair::create();
 
         // round 1: send commitments to ephemeral public keys
-        let party1_ephemeral_key =
+        let (party1_ephemeral_key, party1_sign_first_message, party1_sign_second_message) =
             Signature::create_ephemeral_key_and_commit(&party1_key, &message);
-        let party2_ephemeral_key =
+        let (party2_ephemeral_key, party2_sign_first_message, party2_sign_second_message) =
             Signature::create_ephemeral_key_and_commit(&party2_key, &message);
-        let party3_ephemeral_key =
+        let (party3_ephemeral_key, party3_sign_first_message, party3_sign_second_message) =
             Signature::create_ephemeral_key_and_commit(&party3_key, &message);
 
-        let party1_commitment = &party1_ephemeral_key.commitment;
-        let party2_commitment = &party2_ephemeral_key.commitment;
-        let party3_commitment = &party3_ephemeral_key.commitment;
+        let party1_commitment = &party1_sign_first_message.commitment;
+        let party2_commitment = &party2_sign_first_message.commitment;
+        let party3_commitment = &party3_sign_first_message.commitment;
 
         // round 2: send ephemeral public keys and check commitments
         assert!(test_com(
-            &party2_ephemeral_key.R,
-            &party2_ephemeral_key.blind_factor,
+            &party2_sign_second_message.R,
+            &party2_sign_second_message.blind_factor,
             party2_commitment
         ));
         assert!(test_com(
-            &party1_ephemeral_key.R,
-            &party1_ephemeral_key.blind_factor,
+            &party1_sign_second_message.R,
+            &party1_sign_second_message.blind_factor,
             party1_commitment
         ));
         assert!(test_com(
-            &party3_ephemeral_key.R,
-            &party3_ephemeral_key.blind_factor,
+            &party3_sign_second_message.R,
+            &party3_sign_second_message.blind_factor,
             party3_commitment
         ));
 

@@ -144,8 +144,15 @@ impl KeyPair {
 pub struct EphemeralKey {
     r: FE,
     pub R: GE,
+}
+
+pub struct SignFirstMsg {
     pub commitment: BigInt,
-    blind_factor: BigInt,
+}
+
+pub struct SignSecondMsg {
+    pub R: GE,
+    pub blind_factor: BigInt,
 }
 
 #[derive(Debug)]
@@ -155,7 +162,10 @@ pub struct Signature {
 }
 
 impl Signature {
-    pub fn create_ephemeral_key_and_commit(keys: &KeyPair, message: &[u8]) -> EphemeralKey {
+    pub fn create_ephemeral_key_and_commit(
+        keys: &KeyPair,
+        message: &[u8],
+    ) -> (EphemeralKey, SignFirstMsg, SignSecondMsg) {
         let r = HSha512::create_hash(&vec![
             &BigInt::from(2),
             &keys.expended_private_key.prefix.to_big_int(),
@@ -165,12 +175,11 @@ impl Signature {
         let ec_point: GE = ECPoint::generator();
         let R: GE = ec_point * &r;
         let (commitment, blind_factor) = HashCommitment::create_commitment(&R.x_coor());
-        EphemeralKey {
-            r,
-            R,
-            commitment,
-            blind_factor,
-        }
+        (
+            EphemeralKey { r, R: R.clone() },
+            SignFirstMsg { commitment },
+            SignSecondMsg { R, blind_factor },
+        )
     }
     pub fn k(R_tot: &GE, apk: &GE, message: &[u8]) -> FE {
         let k = HSha512::create_hash(&vec![
