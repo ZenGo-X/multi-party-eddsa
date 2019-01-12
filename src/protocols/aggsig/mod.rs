@@ -146,10 +146,12 @@ pub struct EphemeralKey {
     pub R: GE,
 }
 
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct SignFirstMsg {
     pub commitment: BigInt,
 }
 
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct SignSecondMsg {
     pub R: GE,
     pub blind_factor: BigInt,
