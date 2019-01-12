@@ -267,6 +267,9 @@ pub fn test_com(r_to_test: &GE, blind_factor: &BigInt, comm: &BigInt) -> bool {
         &r_to_test.x_coor(),
         blind_factor,
     );
+    println!("computed_com {:?}", computed_comm);
+    println!("com {:?}", comm);
+
     computed_comm == comm
 }
 mod test;
