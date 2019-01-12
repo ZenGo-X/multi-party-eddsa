@@ -12,3 +12,6 @@ crate-type = ["dylib"]
 [dependencies]
 curv = { git = "https://github.com/KZen-networks/curv" , features =  ["ed25519"]}
 hex = "0.3.2"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
