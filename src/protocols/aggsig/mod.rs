@@ -157,7 +157,7 @@ pub struct SignSecondMsg {
     pub blind_factor: BigInt,
 }
 
-#[derive(Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Signature {
     pub R: GE,
     pub s: FE,
