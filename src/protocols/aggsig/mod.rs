@@ -142,7 +142,7 @@ impl KeyPair {
 }
 #[derive(Debug)]
 pub struct EphemeralKey {
-    r: FE,
+    pub r: FE,
     pub R: GE,
 }
 
