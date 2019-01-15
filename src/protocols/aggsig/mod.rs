@@ -104,7 +104,7 @@ impl KeyPair {
         let bn_1 = BigInt::from(1);
         let x_coor_vec: Vec<BigInt> = (0..pks.len())
             .into_iter()
-            .map(|i| pks[i].x_coor())
+            .map(|i| pks[i].bytes_compressed_to_big_int())
             .collect();
         let hash_vec: Vec<BigInt> = x_coor_vec
             .iter()
@@ -176,7 +176,8 @@ impl Signature {
         let r: FE = ECScalar::from(&r);
         let ec_point: GE = ECPoint::generator();
         let R: GE = ec_point * &r;
-        let (commitment, blind_factor) = HashCommitment::create_commitment(&R.x_coor());
+        let (commitment, blind_factor) =
+            HashCommitment::create_commitment(&R.bytes_compressed_to_big_int());
         (
             EphemeralKey { r, R: R.clone() },
             SignFirstMsg { commitment },
@@ -264,7 +265,7 @@ pub fn verify(signature: &Signature, message: &[u8], public_key: &GE) -> Result<
 
 pub fn test_com(r_to_test: &GE, blind_factor: &BigInt, comm: &BigInt) -> bool {
     let computed_comm = &HashCommitment::create_commitment_with_user_defined_randomness(
-        &r_to_test.x_coor(),
+        &r_to_test.bytes_compressed_to_big_int(),
         blind_factor,
     );
     computed_comm == comm
