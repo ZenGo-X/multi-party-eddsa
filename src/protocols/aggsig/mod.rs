@@ -30,18 +30,19 @@ use curv::arithmetic::traits::Converter;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives::commitments::traits::*;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExpendedPrivateKey {
     pub prefix: FE,
     private_key: FE,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyAgg {
     pub apk: GE,
     pub hash: FE,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyPair {
     pub public_key: GE,
     expended_private_key: ExpendedPrivateKey,
