@@ -16,6 +16,7 @@
 
 #[cfg(test)]
 mod tests {
+    use curv::elliptic::curves::traits::ECPoint;
     use curv::GE;
     use protocols::aggsig::{test_com, verify, KeyPair, Signature};
 
@@ -180,5 +181,44 @@ mod tests {
 
         // verify:
         assert!(verify(&signature, &message, &party1_key_agg.apk).is_ok())
+    }
+
+    use curv::elliptic::curves::traits::ECScalar;
+    use curv::{BigInt, FE};
+    use hex::decode;
+    #[test]
+    fn test_verify_standard_sig() {
+        // msg hash:05b5d2c43079b8d696ebb21f6e1d1feb7c4aa7c5ba47eea4940f549ebb212e3d
+        // sk: ab2add54327c0baa15d21961f820d8fa231de60450dadd7ce2dec12a9934dddc3b97c9279bbb4b501b84d7c3506d5f018a1e1df1d86daab5e97d888af44887eb
+        // pk: 3b97c9279bbb4b501b84d7c3506d5f018a1e1df1d86daab5e97d888af44887eb
+        // sig: 311b4390d1d92ee3c56d66e22c7cacf13fba86c44b61769b81aa26680af02d1b5a180452743fac943b53728e4cbea288a566ba49f7695808d53b3f9f1cd6ed02
+        // R = 311b4390d1d92ee3c56d66e22c7cacf13fba86c44b61769b81aa26680af02d1b
+        // s = 5a180452743fac943b53728e4cbea288a566ba49f7695808d53b3f9f1cd6ed02
+
+        let eight_bn = BigInt::from(8);
+        let eight: FE = ECScalar::from(&eight_bn);
+        let eight_inv = eight.invert();
+
+        let msg_str = "05b5d2c43079b8d696ebb21f6e1d1feb7c4aa7c5ba47eea4940f549ebb212e3d";
+        let message = decode(msg_str).unwrap();
+
+        let pk_str = "3b97c9279bbb4b501b84d7c3506d5f018a1e1df1d86daab5e97d888af44887eb";
+        let pk_dec = decode(pk_str).unwrap();
+        let pk: GE = ECPoint::from_bytes(&pk_dec[..]).unwrap();
+        let pk = pk * eight_inv;
+
+        let R_str = "311b4390d1d92ee3c56d66e22c7cacf13fba86c44b61769b81aa26680af02d1b";
+        let R_dec = decode(R_str).unwrap();
+        let R: GE = ECPoint::from_bytes(&R_dec[..]).unwrap();
+        let R = R * eight_inv;
+
+        let s_str = "5a180452743fac943b53728e4cbea288a566ba49f7695808d53b3f9f1cd6ed02";
+        let mut s_dec = decode(s_str).unwrap();
+        s_dec.reverse();
+        let s_bn = BigInt::from(&s_dec[..]);
+        let s: FE = ECScalar::from(&s_bn);
+
+        let sig = Signature { R, s };
+        assert!(verify(&sig, &message, &pk).is_ok())
     }
 }

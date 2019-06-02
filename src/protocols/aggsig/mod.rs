@@ -174,7 +174,7 @@ impl Signature {
             &keys.expended_private_key.prefix.to_big_int(),
             &BigInt::from(message),
         ]);
-        let r: FE = ECScalar::from(&r);
+        let r = reverse_bn_to_fe(&r);
         let ec_point: GE = ECPoint::generator();
         let R: GE = ec_point * &r;
         let (commitment, blind_factor) =
@@ -191,7 +191,7 @@ impl Signature {
             &apk.bytes_compressed_to_big_int(),
             &BigInt::from(message),
         ]);
-        let k: FE = ECScalar::from(&k);
+        let k = reverse_bn_to_fe(&k);
         k
     }
     pub fn get_R_tot(mut R: Vec<GE>) -> GE {
@@ -223,7 +223,7 @@ impl Signature {
             &keys.public_key.bytes_compressed_to_big_int(),
             &BigInt::from(message),
         ]);
-        let k: FE = ECScalar::from(&k);
+        let k = reverse_bn_to_fe(&k);
         let k_mul_sk = k.mul(&keys.expended_private_key.private_key.get_element());
         let s = r.add(&k_mul_sk.get_element());
         Signature { R, s }
@@ -250,13 +250,15 @@ pub fn verify(signature: &Signature, message: &[u8], public_key: &GE) -> Result<
         &BigInt::from(message),
     ]);
 
+    let k_fe = reverse_bn_to_fe(&k);
+
     let base_point: GE = ECPoint::generator();
-    let k_fe: FE = ECScalar::from(&k);
-    //let minus_k_fe = curve_order_fe.sub(&k_fe.get_element());
+
     let A: GE = public_key.clone();
     let kA = A * k_fe;
     let sG = base_point * &signature.s;
     let R_plus_kA = kA + &(signature.R);
+
     if R_plus_kA == sG {
         Ok(())
     } else {
@@ -272,3 +274,10 @@ pub fn test_com(r_to_test: &GE, blind_factor: &BigInt, comm: &BigInt) -> bool {
     computed_comm == comm
 }
 mod test;
+
+pub fn reverse_bn_to_fe(scalar: &BigInt) -> FE {
+    let mut vec = BigInt::to_vec(&scalar);
+    vec.reverse();
+    let scalar_out = BigInt::from(&vec[..]);
+    ECScalar::from(&scalar_out)
+}
