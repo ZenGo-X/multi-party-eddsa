@@ -1,5 +1,5 @@
 # Multi Party EdDSA signatures
-Rust implementation of threshold Ed25519 signature scheme.
+Rust implementation of multiparty Ed25519 signature scheme.
 
 #### Currently supporting:
 * [Aggregated Signatures](https://github.com/KZen-networks/multi-party-ed25519/wiki/Aggregated-Ed25519-Signatures)
