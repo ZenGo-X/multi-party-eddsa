@@ -7,7 +7,7 @@ authors = [
 ]
 
 [lib]
-crate-type = ["dylib"]
+crate-type = ["rlib", "dylib"]
 
 [dependencies]
 curv = { git = "https://github.com/KZen-networks/curv" , features =  ["ec_ed25519"]}
