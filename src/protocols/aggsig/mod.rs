@@ -20,13 +20,13 @@
 //!
 //! See https://tools.ietf.org/html/rfc8032
 use curv::cryptographic_primitives::proofs::*;
-use curv::elliptic::curves::traits::*;
-use curv::{BigInt, FE, GE};
+pub use curv::elliptic::curves::traits::*;
+pub use curv::{BigInt, FE, GE};
 
 use curv::cryptographic_primitives::hashing::hash_sha512::HSha512;
 use curv::cryptographic_primitives::hashing::traits::*;
 
-use curv::arithmetic::traits::Converter;
+pub use curv::arithmetic::traits::Converter;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives::commitments::traits::*;
 
@@ -141,7 +141,7 @@ impl KeyPair {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct EphemeralKey {
     pub r: FE,
     pub R: GE,
