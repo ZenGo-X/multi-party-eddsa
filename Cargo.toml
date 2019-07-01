@@ -1,6 +1,6 @@
 [package]
 name = "multi-party-ed25519"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
     "Omer <omer@kzencorp.com>",
     "Gary <gary@kzencorp.com>"
@@ -10,7 +10,7 @@ authors = [
 crate-type = ["rlib", "dylib"]
 
 [dependencies]
-curv = { git = "https://github.com/KZen-networks/curv" , features =  ["ec_ed25519"]}
+curv = { git = "https://github.com/KZen-networks/curv" , branch =  "feature/libra-support", features = ["ec_ed25519"] }
 hex = "0.3.2"
 serde = "1.0"
 serde_json = "1.0"
