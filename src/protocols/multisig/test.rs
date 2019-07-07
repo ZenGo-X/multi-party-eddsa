@@ -14,7 +14,7 @@
 
     @license GPL-3.0+ <https://github.com/KZen-networks/multi-party-ed25519/blob/master/LICENSE>
 */
-
+#[cfg(test)]
 mod tests {
 
     use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
