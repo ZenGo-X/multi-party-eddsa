@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/KZen-networks/multi-party-eddsa.svg?branch=master)](https://travis-ci.com/KZen-networks/multi-party-eddsa)
+
 # Multi Party EdDSA signatures
 Rust implementation of multiparty Ed25519 signature scheme.
 
