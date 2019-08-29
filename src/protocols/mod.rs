@@ -17,3 +17,4 @@
 // reference implementation: https://ed25519.cr.yp.to/python/ed25519.py
 pub mod aggsig;
 pub mod multisig;
+pub mod thresholdsig;
