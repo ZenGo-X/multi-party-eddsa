@@ -30,6 +30,12 @@ mod tests {
 
     #[test]
     fn test_multiparty_signing_for_two_parties() {
+        for _i in 0..256 {
+            test_multiparty_signing_for_two_parties_internal();
+        }
+    }
+
+    fn test_multiparty_signing_for_two_parties_internal() {
         let message: [u8; 4] = [79, 77, 69, 82];
 
         // round 0: generate signing keys
@@ -97,6 +103,12 @@ mod tests {
 
     #[test]
     fn test_multiparty_signing_for_three_parties() {
+        for _i in 0..256 {
+            test_multiparty_signing_for_three_parties_internal();
+        }
+    }
+
+    fn test_multiparty_signing_for_three_parties_internal() {
         let message: [u8; 4] = [79, 77, 69, 82];
 
         // round 0: generate signing keys

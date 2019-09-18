@@ -75,40 +75,25 @@ pub struct Signature {
 
 impl Keys {
     pub fn phase1_create(index: usize) -> Keys {
-        let ec_point: GE = ECPoint::generator();
         let sk: FE = ECScalar::new_random();
-        let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
-        let h_vec = BigInt::to_vec(&h);
-        let mut private_key: [u8; 32] = [0u8; 32];
-        let mut prefix: [u8; 32] = [0u8; 32];
-        prefix.copy_from_slice(&h_vec[32..64]);
-        private_key.copy_from_slice(&h_vec[00..32]);
-        private_key[0] &= 248;
-        private_key[31] &= 63;
-        private_key[31] |= 64;
-        let private_key = &private_key[..private_key.len()];
-        let prefix = &prefix[..prefix.len()];
-        let private_key: FE = ECScalar::from(&BigInt::from(private_key));
-        let prefix: FE = ECScalar::from(&BigInt::from(prefix));
-        let public_key = ec_point * &private_key;
-
-        Keys {
-            u_i: private_key,
-            y_i: public_key,
-            prefix,
-            party_index: index.clone(),
-        }
+        Self::phase1_create_from_private_key_internal(index, &sk)
     }
 
     pub fn phase1_create_from_private_key(index: usize, secret: &BigInt) -> Keys {
         let sk: FE = ECScalar::from(secret);
+        Self::phase1_create_from_private_key_internal(index, &sk)
+    }
+
+    fn phase1_create_from_private_key_internal(index: usize, sk: &FE) -> Keys {
         let ec_point: GE = ECPoint::generator();
         let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
         let h_vec = BigInt::to_vec(&h);
+        let mut h_vec_padded = vec![0; 64 - h_vec.len()];  // ensure hash result is padded to 64 bytes
+        h_vec_padded.extend_from_slice(&h_vec);
         let mut private_key: [u8; 32] = [0u8; 32];
         let mut prefix: [u8; 32] = [0u8; 32];
-        prefix.copy_from_slice(&h_vec[32..64]);
-        private_key.copy_from_slice(&h_vec[00..32]);
+        prefix.copy_from_slice(&h_vec_padded[32..64]);
+        private_key.copy_from_slice(&h_vec_padded[00..32]);
         private_key[0] &= 248;
         private_key[31] &= 63;
         private_key[31] |= 64;

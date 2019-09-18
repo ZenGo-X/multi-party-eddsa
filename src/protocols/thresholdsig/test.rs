@@ -17,9 +17,14 @@ mod tests {
     use protocols::thresholdsig::*;
 
     #[test]
-    #[allow(unused_doc_comments)]
     fn test_t2_n4() {
-        /// this test assumes that in keygen we have n=4 parties and in signing we have 4 parties as well.
+        for _i in 0..256 {
+            test_t2_n4_internal();
+        }
+    }
+
+    fn test_t2_n4_internal() {
+        // this test assumes that in keygen we have n=4 parties and in signing we have 4 parties as well.
         let t = 2;
         let n = 4;
         let key_gen_parties_index_vec: [usize; 4] = [0, 1, 2, 3];
@@ -61,8 +66,14 @@ mod tests {
     }
 
     #[test]
-    #[allow(unused_doc_comments)]
     fn test_t2_n5_sign_with_4() {
+        for _i in 0..256 {
+            test_t2_n5_sign_with_4_internal();
+        }
+    }
+
+    #[allow(unused_doc_comments)]
+    fn test_t2_n5_sign_with_4_internal() {
         /// this test assumes that in keygen we have n=4 parties and in signing we have 4 parties, indices 0,1,3,4.
         let t = 2;
         let n = 5;
