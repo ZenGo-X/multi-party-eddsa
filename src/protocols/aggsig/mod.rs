@@ -169,10 +169,13 @@ impl Signature {
         keys: &KeyPair,
         message: &[u8],
     ) -> (EphemeralKey, SignFirstMsg, SignSecondMsg) {
+        // here we deviate from the spec, by introducing  non-deterministic element (random number)
+        // to the nonce
         let r = HSha512::create_hash(&vec![
-            &BigInt::from(2),
+            &BigInt::from(2), // domain seperation
             &keys.expended_private_key.prefix.to_big_int(),
             &BigInt::from(message),
+            &FE::new_random().to_big_int(),
         ]);
         let r = reverse_bn_to_fe(&r);
         let ec_point: GE = ECPoint::generator();

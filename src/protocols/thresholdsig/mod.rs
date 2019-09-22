@@ -218,7 +218,13 @@ impl EphemeralKey {
         message: &[u8],
         index: usize,
     ) -> EphemeralKey {
-        let r_local = HSha512::create_hash(&[&keys.prefix.to_big_int(), &BigInt::from(message)]);
+        // here we deviate from the spec, by introducing  non-deterministic element (random number)
+        // to the nonce
+        let r_local = HSha512::create_hash(&[
+            &keys.prefix.to_big_int(),
+            &BigInt::from(message),
+            &FE::new_random().to_big_int(),
+        ]);
         let r_i: FE = ECScalar::from(&r_local);
         let R_i = GE::generator() * &r_i;
 
