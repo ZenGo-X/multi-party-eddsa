@@ -202,9 +202,12 @@ pub struct EphKey {
 impl EphKey {
     //signing step 1
     pub fn gen_commit(key_gen_key_pair: &ExpendedKeyPair, message: &BigInt) -> EphKey {
+        // here we deviate from the spec, by introducing  non-deterministic element (random number)
+        // to the nonce
         let r = HSha512::create_hash(&vec![
             &key_gen_key_pair.expended_private_key.prefix.to_big_int(),
             &message,
+            &FE::new_random().to_big_int(),
         ]);
         let r_fe: FE = ECScalar::from(&r);
         let g: GE = ECPoint::generator();
