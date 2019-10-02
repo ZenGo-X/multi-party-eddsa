@@ -26,6 +26,12 @@ mod tests {
 
     #[test]
     fn two_party_key_gen() {
+        for _i in 0..256 {
+            two_party_key_gen_internal();
+        }
+    }
+
+    fn two_party_key_gen_internal() {
         let message_vec = vec![79, 77, 69, 82];
         let message_bn = BigInt::from(&message_vec[..]);
         let message = HSha256::create_hash(&vec![&message_bn]);
