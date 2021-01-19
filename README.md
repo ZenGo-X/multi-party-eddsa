@@ -19,4 +19,4 @@ The contribution workflow is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Contact
 -------------------
-Feel free to [reach out](mailto:github@kzencorp.com) or join the KZen Research [Telegram](https://t.me/joinchat/ET1mddGXRoyCxZ-7) for discussions on code and research.
+Feel free to [reach out](mailto:github@kzencorp.com) or join the ZenGo X [Telegram](https://t.me/joinchat/ET1mddGXRoyCxZ-7) for discussions on code and research.
