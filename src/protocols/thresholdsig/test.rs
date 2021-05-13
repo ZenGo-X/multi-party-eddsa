@@ -13,7 +13,7 @@
 #[cfg(test)]
 mod tests {
     use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-    use curv::{FE, GE};
+    use curv::elliptic::curves::ed25519::{GE, FE};
     use protocols::thresholdsig::*;
 
     #[test]
@@ -132,7 +132,7 @@ mod tests {
         t: usize,
         n: usize,
         parties: &[usize],
-    ) -> (Vec<Keys>, Vec<SharedKeys>, GE, Vec<VerifiableSS>) {
+    ) -> (Vec<Keys>, Vec<SharedKeys>, GE, Vec<VerifiableSS<GE>>) {
         let parames = Parameters {
             threshold: t,
             share_count: n.clone(),
@@ -209,7 +209,7 @@ mod tests {
         Vec<EphemeralKey>,
         Vec<EphemeralSharedKeys>,
         GE,
-        Vec<VerifiableSS>,
+        Vec<VerifiableSS<GE>>,
     ) {
         let parames = Parameters {
             threshold: t,
