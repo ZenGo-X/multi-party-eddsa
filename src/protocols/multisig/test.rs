@@ -21,7 +21,9 @@ mod tests {
     use curv::cryptographic_primitives::hashing::merkle_tree::MT256;
     use curv::cryptographic_primitives::hashing::traits::Hash;
     use curv::elliptic::curves::traits::ECScalar;
-    use curv::{BigInt, FE};
+    use curv::elliptic::curves::ed25519::{GE, FE};
+    use curv::BigInt;
+    use curv::arithmetic::Converter;
     use protocols::multisig::{partial_sign, verify, EphKey, Keys, Signature};
 
     #[test]
@@ -33,7 +35,7 @@ mod tests {
 
     fn two_party_key_gen_internal() {
         let message_vec = vec![79, 77, 69, 82];
-        let message_bn = BigInt::from(&message_vec[..]);
+        let message_bn = BigInt::from_bytes(&message_vec[..]);
         let message = HSha256::create_hash(&vec![&message_bn]);
 
         // party1 key gen:
@@ -84,8 +86,8 @@ mod tests {
         let sig = Signature::set_signature(&Xt, &y);
         assert!(verify(&It, &sig, &es).is_ok());
 
-        assert!(MT256::validate_proof(&proof1, root).is_ok());
-        assert!(MT256::validate_proof(&proof2, root).is_ok());
+        assert!(MT256::<GE>::validate_proof(&proof1, root).is_ok());
+        assert!(MT256::<GE>::validate_proof(&proof2, root).is_ok());
     }
 
 }

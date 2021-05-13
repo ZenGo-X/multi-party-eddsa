@@ -21,7 +21,8 @@
 //! See https://tools.ietf.org/html/rfc8032
 use curv::cryptographic_primitives::proofs::*;
 pub use curv::elliptic::curves::traits::*;
-pub use curv::{BigInt, FE, GE};
+use curv::elliptic::curves::ed25519::{GE, FE};
+use curv::BigInt;
 
 use curv::cryptographic_primitives::hashing::hash_sha512::HSha512;
 use curv::cryptographic_primitives::hashing::traits::*;
@@ -62,7 +63,7 @@ impl KeyPair {
     fn create_from_private_key_internal(sk: &FE) -> KeyPair {
         let ec_point: GE = ECPoint::generator();
         let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
-        let h_vec = BigInt::to_vec(&h);
+        let h_vec = BigInt::to_bytes(&h);
         let mut h_vec_padded = vec![0; 64 - h_vec.len()];  // ensure hash result is padded to 64 bytes
         h_vec_padded.extend_from_slice(&h_vec);
         let mut private_key: [u8; 32] = [0u8; 32];
@@ -74,8 +75,8 @@ impl KeyPair {
         private_key[31] |= 64;
         let private_key = &private_key[..private_key.len()];
         let prefix = &prefix[..prefix.len()];
-        let private_key: FE = ECScalar::from(&BigInt::from(private_key));
-        let prefix: FE = ECScalar::from(&BigInt::from(prefix));
+        let private_key: FE = ECScalar::from(&BigInt::from_bytes(private_key));
+        let prefix: FE = ECScalar::from(&BigInt::from_bytes(prefix));
         let public_key = ec_point * &private_key;
         KeyPair {
             public_key,
@@ -159,7 +160,7 @@ impl Signature {
         let r = HSha512::create_hash(&vec![
             &BigInt::from(2), // domain seperation
             &keys.expended_private_key.prefix.to_big_int(),
-            &BigInt::from(message),
+            &BigInt::from_bytes(message),
             &FE::new_random().to_big_int(),
         ]);
         let r = reverse_bn_to_fe(&r);
@@ -177,7 +178,7 @@ impl Signature {
         let k = HSha512::create_hash(&vec![
             &R_tot.bytes_compressed_to_big_int(),
             &apk.bytes_compressed_to_big_int(),
-            &BigInt::from(message),
+            &BigInt::from_bytes(message),
         ]);
         let k = reverse_bn_to_fe(&k);
         k
@@ -201,7 +202,7 @@ impl Signature {
     pub fn sign_single(message: &[u8], keys: &KeyPair) -> Signature {
         let r = HSha512::create_hash(&vec![
             &keys.expended_private_key.prefix.to_big_int(),
-            &BigInt::from(message),
+            &BigInt::from_bytes(message),
         ]);
         let r: FE = ECScalar::from(&r);
         let ec_point: GE = ECPoint::generator();
@@ -209,7 +210,7 @@ impl Signature {
         let k = HSha512::create_hash(&vec![
             &R.bytes_compressed_to_big_int(),
             &keys.public_key.bytes_compressed_to_big_int(),
-            &BigInt::from(message),
+            &BigInt::from_bytes(message),
         ]);
         let k = reverse_bn_to_fe(&k);
         let k_mul_sk = k.mul(&keys.expended_private_key.private_key.get_element());
@@ -235,7 +236,7 @@ pub fn verify(signature: &Signature, message: &[u8], public_key: &GE) -> Result<
     let k = HSha512::create_hash(&vec![
         &signature.R.bytes_compressed_to_big_int(),
         &public_key.bytes_compressed_to_big_int(),
-        &BigInt::from(message),
+        &BigInt::from_bytes(message),
     ]);
 
     let k_fe = reverse_bn_to_fe(&k);
@@ -264,8 +265,8 @@ pub fn test_com(r_to_test: &GE, blind_factor: &BigInt, comm: &BigInt) -> bool {
 mod test;
 
 pub fn reverse_bn_to_fe(scalar: &BigInt) -> FE {
-    let mut vec = BigInt::to_vec(&scalar);
+    let mut vec = BigInt::to_bytes(&scalar);
     vec.reverse();
-    let scalar_out = BigInt::from(&vec[..]);
+    let scalar_out = BigInt::from_bytes(&vec[..]);
     ECScalar::from(&scalar_out)
 }

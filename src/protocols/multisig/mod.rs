@@ -22,7 +22,8 @@ use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
 use curv::cryptographic_primitives::hashing::hash_sha512::HSha512;
 use curv::cryptographic_primitives::hashing::traits::*;
 use curv::elliptic::curves::traits::*;
-use curv::{BigInt, FE, GE};
+use curv::elliptic::curves::ed25519::{GE, FE};
+use curv::BigInt;
 use protocols::multisig;
 
 // TODO: move to a common location to be used by all protocols.
@@ -78,7 +79,7 @@ impl ExpendedKeyPair {
     pub fn create_from_private_key(sk: FE) -> ExpendedKeyPair {
         let ec_point: GE = ECPoint::generator();
         let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
-        let h_vec = BigInt::to_vec(&h);
+        let h_vec = BigInt::to_bytes(&h);
         let mut h_vec_padded = vec![0; 64 - h_vec.len()];  // ensure hash result is padded to 64 bytes
         h_vec_padded.extend_from_slice(&h_vec);
         let mut private_key: [u8; 32] = [0u8; 32];
@@ -90,8 +91,8 @@ impl ExpendedKeyPair {
         private_key[31] |= 64;
         let private_key = &private_key[..private_key.len()];
         let prefix = &prefix[..prefix.len()];
-        let private_key: FE = ECScalar::from(&BigInt::from(private_key));
-        let prefix: FE = ECScalar::from(&BigInt::from(prefix));
+        let private_key: FE = ECScalar::from(&BigInt::from_bytes(private_key));
+        let prefix: FE = ECScalar::from(&BigInt::from_bytes(prefix));
         let public_key = ec_point * &private_key;
         ExpendedKeyPair {
             public_key,

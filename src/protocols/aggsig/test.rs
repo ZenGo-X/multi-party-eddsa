@@ -17,8 +17,10 @@
 #[cfg(test)]
 mod tests {
     use curv::elliptic::curves::traits::ECPoint;
-    use curv::GE;
+    use curv::elliptic::curves::ed25519::{GE, FE};
+    use curv::BigInt;
     use protocols::aggsig::{test_com, verify, KeyPair, Signature};
+    use curv::arithmetic::Converter;
 
     #[test]
     fn test_ed25519_one_party() {
@@ -196,7 +198,6 @@ mod tests {
     }
 
     use curv::elliptic::curves::traits::ECScalar;
-    use curv::{BigInt, FE};
     use hex::decode;
     #[test]
     fn test_verify_standard_sig() {
@@ -227,7 +228,7 @@ mod tests {
         let s_str = "5a180452743fac943b53728e4cbea288a566ba49f7695808d53b3f9f1cd6ed02";
         let mut s_dec = decode(s_str).unwrap();
         s_dec.reverse();
-        let s_bn = BigInt::from(&s_dec[..]);
+        let s_bn = BigInt::from_bytes(&s_dec[..]);
         let s: FE = ECScalar::from(&s_bn);
 
         let sig = Signature { R, s };
