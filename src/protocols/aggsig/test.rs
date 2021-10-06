@@ -25,8 +25,16 @@ mod tests {
     #[test]
     fn test_ed25519_one_party() {
         let message: [u8; 4] = [79, 77, 69, 82];
-        let party1_keys = KeyPair::create();
+        // let party1_keys = KeyPair::create();
+        let priv_str = "48ab347b2846f96b7bcd00bf985c52b83b92415c5c914bc1f3b09e186cf2b14f"; // Private Key
+
+        let mut priv_dec = decode(priv_str).unwrap();
+        priv_dec.reverse();
+        let priv_bn = BigInt::from_bytes(&priv_dec[..]);
+
+        let party1_keys = KeyPair::create_from_private_key(&priv_bn);
         let signature = Signature::sign_single(&message, &party1_keys);
+        println!("TESTTEST\n\n{:?}\n", party1_keys.public_key.bytes_compressed_to_big_int().to_hex());
         assert!(verify(&signature, &message, &party1_keys.public_key).is_ok());
     }
 
