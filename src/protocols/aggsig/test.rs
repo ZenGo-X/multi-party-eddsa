@@ -21,6 +21,8 @@ mod tests {
     use curv::BigInt;
     use protocols::aggsig::{test_com, verify, KeyPair, Signature};
     use curv::arithmetic::Converter;
+    use sha2::Sha512;
+    use sha2::Digest;
 
     #[test]
     fn test_ed25519_one_party() {
@@ -28,8 +30,14 @@ mod tests {
         // let party1_keys = KeyPair::create();
         let priv_str = "48ab347b2846f96b7bcd00bf985c52b83b92415c5c914bc1f3b09e186cf2b14f"; // Private Key
 
-        let mut priv_dec = decode(priv_str).unwrap();
-        priv_dec.reverse();
+        let priv_dec = decode(priv_str).unwrap();
+
+        let mut hasher = Sha512::new();
+        hasher.update(&priv_dec);
+        let result_hex = hasher.finalize();
+
+        println!("Sha512 result: {:?}\n", result_hex);
+        // priv_dec.reverse();
         let priv_bn = BigInt::from_bytes(&priv_dec[..]);
 
         let party1_keys = KeyPair::create_from_private_key(&priv_bn);
