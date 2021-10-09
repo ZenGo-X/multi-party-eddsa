@@ -60,11 +60,18 @@ impl KeyPair {
 
     pub fn create_from_private_key(secret: &BigInt) -> KeyPair {
         let sk: FE = ECScalar::from(secret);
+        println!("secret bigint: {:?}\n", secret);
         Self::create_from_private_key_internal(&sk)
     }
 
     fn create_from_private_key_internal(sk: &FE) -> KeyPair {
         let ec_point: GE = ECPoint::generator();
+        println!("sk fe: {:?}\n",sk);
+        // let sk_bytes = sk.fe.to_bytes();
+        // println!("sk fe bytes: {:?}\n", sk_bytes);
+        let sk_bigint = sk.to_big_int();
+        println!("sk_bigint: {:?}\n", sk_bigint);
+
         let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
         println!("h: {:?}\n", h);
         let h_vec = BigInt::to_bytes(&h);
@@ -88,7 +95,6 @@ impl KeyPair {
         private_key.copy_from_slice(&h_vec_padded[00..32]);
         private_key[0] &= 248;
         private_key[31] &= 127; // was 63
-        println!("After 127: {:?}\n", private_key[31]);
         private_key[31] |= 64;
         let private_key = &mut private_key[..32]; // &private_key[..private_key.len()];
         let prefix = &prefix[..prefix.len()];
