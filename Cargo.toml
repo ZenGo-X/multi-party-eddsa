@@ -1,6 +1,6 @@
 [package]
 name = "multi-party-eddsa"
-version = "0.2.2"
+version = "0.2.3"
 authors = [
     "Omer <omer@kzencorp.com>",
     "Gary <gary@kzencorp.com>"
@@ -15,7 +15,6 @@ hex = "0.3.2"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
-sha2 = "0.9"
 
 [features]
 default = ["curv/rust-gmp-kzen"]
