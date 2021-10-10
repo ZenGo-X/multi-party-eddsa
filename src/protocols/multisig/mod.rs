@@ -21,8 +21,8 @@ use curv::arithmetic::traits::Converter;
 use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
 use curv::cryptographic_primitives::hashing::hash_sha512::HSha512;
 use curv::cryptographic_primitives::hashing::traits::*;
+use curv::elliptic::curves::ed25519::{FE, GE};
 use curv::elliptic::curves::traits::*;
-use curv::elliptic::curves::ed25519::{GE, FE};
 use curv::BigInt;
 use protocols::multisig;
 
@@ -80,7 +80,7 @@ impl ExpendedKeyPair {
         let ec_point: GE = ECPoint::generator();
         let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
         let h_vec = BigInt::to_bytes(&h);
-        let mut h_vec_padded = vec![0; 64 - h_vec.len()];  // ensure hash result is padded to 64 bytes
+        let mut h_vec_padded = vec![0; 64 - h_vec.len()]; // ensure hash result is padded to 64 bytes
         h_vec_padded.extend_from_slice(&h_vec);
         let mut private_key: [u8; 32] = [0u8; 32];
         let mut prefix: [u8; 32] = [0u8; 32];

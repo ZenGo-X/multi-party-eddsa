@@ -13,7 +13,7 @@
 #[cfg(test)]
 mod tests {
     use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-    use curv::elliptic::curves::ed25519::{GE, FE};
+    use curv::elliptic::curves::ed25519::{FE, GE};
     use protocols::thresholdsig::*;
 
     #[test]

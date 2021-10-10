@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-
 /*
     multi-party-ed25519
 
@@ -19,9 +18,10 @@
 //! Simple ed25519
 //!
 //! See https://tools.ietf.org/html/rfc8032
+pub use curv::arithmetic::traits::Samplable;
 use curv::cryptographic_primitives::proofs::*;
+use curv::elliptic::curves::ed25519::{FE, GE};
 pub use curv::elliptic::curves::traits::*;
-use curv::elliptic::curves::ed25519::{GE, FE};
 use curv::BigInt;
 
 use curv::cryptographic_primitives::hashing::hash_sha512::HSha512;
@@ -30,9 +30,6 @@ use curv::cryptographic_primitives::hashing::traits::*;
 pub use curv::arithmetic::traits::Converter;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives::commitments::traits::*;
-use sha2::Sha512;
-use sha2::Digest;
-use hex::decode;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExpendedPrivateKey {
@@ -54,59 +51,28 @@ pub struct KeyPair {
 
 impl KeyPair {
     pub fn create() -> KeyPair {
-        let sk: FE = ECScalar::new_random();
-        Self::create_from_private_key_internal(&sk)
+        let secret = BigInt::sample(256);
+        Self::create_from_private_key(&secret)
     }
 
-    pub fn create_from_private_key(secret: &BigInt) -> KeyPair {
-        let sk: FE = ECScalar::from(secret);
-        println!("secret bigint: {:?}\n", secret);
-        Self::create_from_private_key_internal(&sk)
-    }
-
-    fn create_from_private_key_internal(sk: &FE) -> KeyPair {
+    fn create_from_private_key(secret: &BigInt) -> KeyPair {
         let ec_point: GE = ECPoint::generator();
-        println!("sk fe: {:?}\n",sk);
-        // let sk_bytes = sk.fe.to_bytes();
-        // println!("sk fe bytes: {:?}\n", sk_bytes);
-        let sk_bigint = sk.to_big_int();
-        println!("sk_bigint: {:?}\n", sk_bigint);
-
-        let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
-        println!("h: {:?}\n", h);
+        let h = HSha512::create_hash(&vec![secret]);
         let h_vec = BigInt::to_bytes(&h);
-        println!("h_vec: {:?}\n", h_vec);
-
-        let priv_str = "48ab347b2846f96b7bcd00bf985c52b83b92415c5c914bc1f3b09e186cf2b14f"; // Private Key
-
-        let priv_dec = decode(priv_str).unwrap();
-
-        let mut hasher = Sha512::new();
-        hasher.update(&priv_dec);
-        let h_vec = hasher.finalize();
-        
-        println!("Sha512 result: {:?}\n", h_vec);
-
-        let mut h_vec_padded = vec![0; 64 - h_vec.len()];  // ensure hash result is padded to 64 bytes
+        let mut h_vec_padded = vec![0; 64 - h_vec.len()]; // ensure hash result is padded to 64 bytes
         h_vec_padded.extend_from_slice(&h_vec);
         let mut private_key: [u8; 32] = [0u8; 32];
         let mut prefix: [u8; 32] = [0u8; 32];
         prefix.copy_from_slice(&h_vec_padded[32..64]);
         private_key.copy_from_slice(&h_vec_padded[00..32]);
         private_key[0] &= 248;
-        private_key[31] &= 127; // was 63
+        private_key[31] &= 63;
         private_key[31] |= 64;
-        let private_key = &mut private_key[..32]; // &private_key[..private_key.len()];
-        let prefix = &prefix[..prefix.len()];
-
-        println!("private key just before scalar mult: {:?}", private_key);
-        // let mut private_key:= private_key.;
+        let private_key = &mut private_key[..32];
         private_key.reverse();
-        println!("private key just before scalar mult rev: {:?}", private_key);
-
+        let prefix = &prefix[..prefix.len()];
         let private_key: FE = ECScalar::from(&BigInt::from_bytes(private_key));
         let prefix: FE = ECScalar::from(&BigInt::from_bytes(prefix));
-
         let public_key = ec_point * &private_key;
         KeyPair {
             public_key,
