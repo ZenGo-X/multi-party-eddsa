@@ -55,7 +55,7 @@ impl KeyPair {
         Self::create_from_private_key(&secret)
     }
 
-    fn create_from_private_key(secret: &BigInt) -> KeyPair {
+    pub fn create_from_private_key(secret: &BigInt) -> KeyPair {
         let ec_point: GE = ECPoint::generator();
         let h = HSha512::create_hash(&vec![secret]);
         let h_vec = BigInt::to_bytes(&h);
