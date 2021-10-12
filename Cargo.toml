@@ -1,10 +1,13 @@
 [package]
 name = "multi-party-eddsa"
-version = "0.2.3"
+version = "0.2.4"
 authors = [
     "Omer <omer@kzencorp.com>",
     "Gary <gary@kzencorp.com>"
 ]
+license = "MIT"
+description = "Rust implementation of multiparty Ed25519 signature scheme."
+repository = "https://github.com/ZenGo-X/curv"
 
 [lib]
 crate-type = ["rlib", "dylib"]
