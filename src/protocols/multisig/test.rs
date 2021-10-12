@@ -17,13 +17,13 @@
 #[cfg(test)]
 mod tests {
 
+    use curv::arithmetic::Converter;
     use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
     use curv::cryptographic_primitives::hashing::merkle_tree::MT256;
     use curv::cryptographic_primitives::hashing::traits::Hash;
+    use curv::elliptic::curves::ed25519::{FE, GE};
     use curv::elliptic::curves::traits::ECScalar;
-    use curv::elliptic::curves::ed25519::{GE, FE};
     use curv::BigInt;
-    use curv::arithmetic::Converter;
     use protocols::multisig::{partial_sign, verify, EphKey, Keys, Signature};
 
     #[test]
@@ -89,5 +89,4 @@ mod tests {
         assert!(MT256::<GE>::validate_proof(&proof1, root).is_ok());
         assert!(MT256::<GE>::validate_proof(&proof2, root).is_ok());
     }
-
 }

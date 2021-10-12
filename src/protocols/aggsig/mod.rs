@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-
 /*
     multi-party-ed25519
 
@@ -19,9 +18,10 @@
 //! Simple ed25519
 //!
 //! See https://tools.ietf.org/html/rfc8032
+pub use curv::arithmetic::traits::Samplable;
 use curv::cryptographic_primitives::proofs::*;
+use curv::elliptic::curves::ed25519::{FE, GE};
 pub use curv::elliptic::curves::traits::*;
-use curv::elliptic::curves::ed25519::{GE, FE};
 use curv::BigInt;
 
 use curv::cryptographic_primitives::hashing::hash_sha512::HSha512;
@@ -51,20 +51,15 @@ pub struct KeyPair {
 
 impl KeyPair {
     pub fn create() -> KeyPair {
-        let sk: FE = ECScalar::new_random();
-        Self::create_from_private_key_internal(&sk)
+        let secret = BigInt::sample(256);
+        Self::create_from_private_key(&secret)
     }
 
     pub fn create_from_private_key(secret: &BigInt) -> KeyPair {
-        let sk: FE = ECScalar::from(secret);
-        Self::create_from_private_key_internal(&sk)
-    }
-
-    fn create_from_private_key_internal(sk: &FE) -> KeyPair {
         let ec_point: GE = ECPoint::generator();
-        let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
+        let h = HSha512::create_hash(&vec![secret]);
         let h_vec = BigInt::to_bytes(&h);
-        let mut h_vec_padded = vec![0; 64 - h_vec.len()];  // ensure hash result is padded to 64 bytes
+        let mut h_vec_padded = vec![0; 64 - h_vec.len()]; // ensure hash result is padded to 64 bytes
         h_vec_padded.extend_from_slice(&h_vec);
         let mut private_key: [u8; 32] = [0u8; 32];
         let mut prefix: [u8; 32] = [0u8; 32];
@@ -73,7 +68,8 @@ impl KeyPair {
         private_key[0] &= 248;
         private_key[31] &= 63;
         private_key[31] |= 64;
-        let private_key = &private_key[..private_key.len()];
+        let private_key = &mut private_key[..32];
+        private_key.reverse();
         let prefix = &prefix[..prefix.len()];
         let private_key: FE = ECScalar::from(&BigInt::from_bytes(private_key));
         let prefix: FE = ECScalar::from(&BigInt::from_bytes(prefix));
