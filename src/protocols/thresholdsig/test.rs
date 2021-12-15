@@ -13,7 +13,7 @@
 #[cfg(test)]
 mod tests {
     use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-    use curv::elliptic::curves::ed25519::{FE, GE};
+    use curv::elliptic::curves::{Ed25519, Point, Scalar};
     use protocols::thresholdsig::*;
 
     #[test]
@@ -25,19 +25,19 @@ mod tests {
 
     fn test_t2_n4_internal() {
         // this test assumes that in keygen we have n=4 parties and in signing we have 4 parties as well.
-        let t = 2;
-        let n = 4;
-        let key_gen_parties_index_vec: [usize; 4] = [0, 1, 2, 3];
+        let t = 2u16;
+        let n = 4u16;
+        let key_gen_parties_index_vec: [u16; 4] = [0, 1, 2, 3];
         let key_gen_parties_points_vec = (0..key_gen_parties_index_vec.len())
             .map(|i| key_gen_parties_index_vec[i].clone() + 1)
-            .collect::<Vec<usize>>();
+            .collect::<Vec<_>>();
 
         let (priv_keys_vec, priv_shared_keys_vec, Y, key_gen_vss_vec) =
             keygen_t_n_parties(t.clone(), n.clone(), &key_gen_parties_points_vec);
-        let parties_index_vec: [usize; 4] = [0, 1, 2, 3];
+        let parties_index_vec: [u16; 4] = [0, 1, 2, 3];
         let parties_points_vec = (0..parties_index_vec.len())
             .map(|i| parties_index_vec[i].clone() + 1)
-            .collect::<Vec<usize>>();
+            .collect::<Vec<u16>>();
 
         let message: [u8; 4] = [79, 77, 69, 82];
         let (_eph_keys_vec, eph_shared_keys_vec, R, eph_vss_vec) = eph_keygen_t_n_parties(
@@ -47,7 +47,7 @@ mod tests {
             &priv_keys_vec,
             &message,
         );
-        let local_sig_vec = (0..n.clone())
+        let local_sig_vec = (0..usize::from(n))
             .map(|i| LocalSig::compute(&message, &eph_shared_keys_vec[i], &priv_shared_keys_vec[i]))
             .collect::<Vec<LocalSig>>();
         let verify_local_sig = LocalSig::verify_local_sigs(
@@ -78,18 +78,18 @@ mod tests {
         let t = 2;
         let n = 5;
         /// keygen:
-        let key_gen_parties_index_vec: [usize; 5] = [0, 1, 2, 3, 4];
+        let key_gen_parties_index_vec: [u16; 5] = [0, 1, 2, 3, 4];
         let key_gen_parties_points_vec = (0..key_gen_parties_index_vec.len())
             .map(|i| key_gen_parties_index_vec[i].clone() + 1)
-            .collect::<Vec<usize>>();
+            .collect::<Vec<_>>();
         let (priv_keys_vec, priv_shared_keys_vec, Y, key_gen_vss_vec) =
             keygen_t_n_parties(t.clone(), n.clone(), &key_gen_parties_points_vec);
         /// signing:
-        let parties_index_vec: [usize; 4] = [0, 1, 3, 4];
+        let parties_index_vec: [u16; 4] = [0, 1, 3, 4];
         let parties_points_vec = (0..parties_index_vec.len())
             .map(|i| parties_index_vec[i].clone() + 1)
-            .collect::<Vec<usize>>();
-        let num_parties = parties_index_vec.len();
+            .collect::<Vec<_>>();
+        let num_parties = parties_index_vec.len() as u16;
         let message: [u8; 4] = [79, 77, 69, 82];
 
         let (_eph_keys_vec, eph_shared_keys_vec, R, eph_vss_vec) = eph_keygen_t_n_parties(
@@ -101,12 +101,12 @@ mod tests {
         );
 
         // each party computes and share a local sig, we collected them here to a vector as each party should do AFTER receiving all local sigs
-        let local_sig_vec = (0..num_parties.clone())
+        let local_sig_vec = (0..usize::from(num_parties))
             .map(|i| {
                 LocalSig::compute(
                     &message,
                     &eph_shared_keys_vec[i],
-                    &priv_shared_keys_vec[parties_index_vec[i]],
+                    &priv_shared_keys_vec[usize::from(parties_index_vec[i])],
                 )
             })
             .collect::<Vec<LocalSig>>();
@@ -129,30 +129,35 @@ mod tests {
     }
 
     pub fn keygen_t_n_parties(
-        t: usize,
-        n: usize,
-        parties: &[usize],
-    ) -> (Vec<Keys>, Vec<SharedKeys>, GE, Vec<VerifiableSS<GE>>) {
+        t: u16,
+        n: u16,
+        parties: &[u16],
+    ) -> (
+        Vec<Keys>,
+        Vec<SharedKeys>,
+        Point<Ed25519>,
+        Vec<VerifiableSS<Ed25519>>,
+    ) {
         let parames = Parameters {
             threshold: t,
             share_count: n.clone(),
         };
-        assert_eq!(parties.len(), n.clone());
-        let party_keys_vec = (0..n.clone())
+        assert_eq!(parties.len(), usize::from(n));
+        let party_keys_vec = (0..usize::from(n))
             .map(|i| Keys::phase1_create(parties[i]))
             .collect::<Vec<Keys>>();
 
         let mut bc1_vec = Vec::new();
         let mut blind_vec = Vec::new();
-        for i in 0..n.clone() {
+        for i in 0..usize::from(n) {
             let (bc1, blind) = party_keys_vec[i].phase1_broadcast();
             bc1_vec.push(bc1);
             blind_vec.push(blind);
         }
 
-        let y_vec = (0..n.clone())
+        let y_vec = (0..usize::from(n))
             .map(|i| party_keys_vec[i].y_i.clone())
-            .collect::<Vec<GE>>();
+            .collect::<Vec<_>>();
         let mut y_vec_iter = y_vec.iter();
         let head = y_vec_iter.next().unwrap();
         let tail = y_vec_iter;
@@ -160,7 +165,7 @@ mod tests {
         let mut vss_scheme_vec = Vec::new();
         let mut secret_shares_vec = Vec::new();
         let mut index_vec = Vec::new();
-        for i in 0..n.clone() {
+        for i in 0..usize::from(n) {
             let (vss_scheme, secret_shares, index) = party_keys_vec[i]
                 .phase1_verify_com_phase2_distribute(
                     &parames, &blind_vec, &y_vec, &bc1_vec, parties,
@@ -171,19 +176,19 @@ mod tests {
             index_vec.push(index);
         }
 
-        let party_shares = (0..n.clone())
+        let party_shares = (0..usize::from(n))
             .map(|i| {
-                (0..n.clone())
+                (0..usize::from(n))
                     .map(|j| {
                         let vec_j = &secret_shares_vec[j];
                         vec_j[i].clone()
                     })
-                    .collect::<Vec<FE>>()
+                    .collect::<Vec<_>>()
             })
-            .collect::<Vec<Vec<FE>>>();
+            .collect::<Vec<Vec<_>>>();
 
         let mut shared_keys_vec = Vec::new();
-        for i in 0..n.clone() {
+        for i in 0..usize::from(n) {
             let shared_keys = party_keys_vec[i]
                 .phase2_verify_vss_construct_keypair(
                     &parames,
@@ -200,23 +205,23 @@ mod tests {
     }
 
     pub fn eph_keygen_t_n_parties(
-        t: usize, // system threshold
-        n: usize, // number of signers
-        parties: &[usize],
+        t: u16, // system threshold
+        n: u16, // number of signers
+        parties: &[u16],
         keys_vec: &Vec<Keys>,
         message: &[u8],
     ) -> (
         Vec<EphemeralKey>,
         Vec<EphemeralSharedKeys>,
-        GE,
-        Vec<VerifiableSS<GE>>,
+        Point<Ed25519>,
+        Vec<VerifiableSS<Ed25519>>,
     ) {
         let parames = Parameters {
             threshold: t,
             share_count: n.clone(),
         };
-        assert!(parties.len() > t && parties.len() <= n);
-        let eph_party_keys_vec = (0..n.clone())
+        assert!(parties.len() > usize::from(t) && parties.len() <= usize::from(n));
+        let eph_party_keys_vec = (0..usize::from(n))
             .map(|i| {
                 EphemeralKey::ephermeral_key_create_from_deterministic_secret(
                     &keys_vec[i],
@@ -228,15 +233,15 @@ mod tests {
 
         let mut bc1_vec = Vec::new();
         let mut blind_vec = Vec::new();
-        for i in 0..n.clone() {
+        for i in 0..usize::from(n) {
             let (bc1, blind) = eph_party_keys_vec[i].phase1_broadcast();
             bc1_vec.push(bc1);
             blind_vec.push(blind);
         }
 
-        let R_vec = (0..n.clone())
+        let R_vec = (0..usize::from(n))
             .map(|i| eph_party_keys_vec[i].R_i.clone())
-            .collect::<Vec<GE>>();
+            .collect::<Vec<_>>();
         let mut R_vec_iter = R_vec.iter();
         let head = R_vec_iter.next().unwrap();
         let tail = R_vec_iter;
@@ -244,7 +249,7 @@ mod tests {
         let mut vss_scheme_vec = Vec::new();
         let mut secret_shares_vec = Vec::new();
         let mut index_vec = Vec::new();
-        for i in 0..n.clone() {
+        for i in 0..usize::from(n) {
             let (vss_scheme, secret_shares, index) = eph_party_keys_vec[i]
                 .phase1_verify_com_phase2_distribute(
                     &parames, &blind_vec, &R_vec, &bc1_vec, parties,
@@ -255,19 +260,19 @@ mod tests {
             index_vec.push(index);
         }
 
-        let party_shares = (0..n.clone())
+        let party_shares = (0..usize::from(n))
             .map(|i| {
-                (0..n.clone())
+                (0..usize::from(n))
                     .map(|j| {
                         let vec_j = &secret_shares_vec[j];
                         vec_j[i].clone()
                     })
-                    .collect::<Vec<FE>>()
+                    .collect::<Vec<_>>()
             })
-            .collect::<Vec<Vec<FE>>>();
+            .collect::<Vec<Vec<_>>>();
 
         let mut shared_keys_vec = Vec::new();
-        for i in 0..n.clone() {
+        for i in 0..usize::from(n) {
             let shared_keys = eph_party_keys_vec[i]
                 .phase2_verify_vss_construct_keypair(
                     &parames,

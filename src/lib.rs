@@ -19,7 +19,9 @@ extern crate curv;
 extern crate hex;
 #[macro_use]
 extern crate serde_derive;
+extern crate rand;
 extern crate serde_json;
+extern crate sha2;
 
 pub mod protocols;
 

@@ -17,8 +17,7 @@
 #[cfg(test)]
 mod tests {
     use curv::arithmetic::Converter;
-    use curv::elliptic::curves::ed25519::{FE, GE};
-    use curv::elliptic::curves::traits::ECPoint;
+    use curv::elliptic::curves::{Ed25519, Point, Scalar};
     use curv::BigInt;
     use protocols::aggsig::{test_com, verify, KeyPair, Signature};
 
@@ -28,14 +27,16 @@ mod tests {
         let priv_dec = decode(priv_str).unwrap();
         let priv_bn = BigInt::from_bytes(&priv_dec[..]);
 
+        let expected_pubkey_hex =
+            "c7d17a93f129527bf7ca413f34a0f23c8462a9c3a3edd4f04550a43cdd60b27a";
+        let expected_pubkey = decode(expected_pubkey_hex).unwrap();
+
         let party1_keys = KeyPair::create_from_private_key(&priv_bn);
-        assert!(
-            &party1_keys
-                .public_key
-                .bytes_compressed_to_big_int()
-                .to_hex()
-                == "c7d17a93f129527bf7ca413f34a0f23c8462a9c3a3edd4f04550a43cdd60b27a"
-        );
+        let mut pubkey = party1_keys.public_key.y_coord().unwrap().to_bytes();
+        // Reverse is requried because bigInt returns hex in big endian while pubkeys are usually little endian.
+        pubkey.reverse();
+
+        assert_eq!(pubkey, expected_pubkey,);
     }
 
     #[test]
@@ -82,14 +83,14 @@ mod tests {
         ));
 
         // compute apk:
-        let mut pks: Vec<GE> = Vec::new();
+        let mut pks = Vec::new();
         pks.push(party1_key.public_key.clone());
         pks.push(party2_key.public_key.clone());
         let party1_key_agg = KeyPair::key_aggregation_n(&pks, &0);
         let party2_key_agg = KeyPair::key_aggregation_n(&pks, &1);
         assert_eq!(party1_key_agg.apk, party2_key_agg.apk);
         // compute R' = sum(Ri):
-        let mut Ri: Vec<GE> = Vec::new();
+        let mut Ri = Vec::new();
         Ri.push(party1_ephemeral_key.R.clone());
         Ri.push(party2_ephemeral_key.R.clone());
         // each party i should run this:
@@ -164,7 +165,7 @@ mod tests {
         ));
 
         // compute apk:
-        let mut pks: Vec<GE> = Vec::new();
+        let mut pks = Vec::new();
         pks.push(party1_key.public_key.clone());
         pks.push(party2_key.public_key.clone());
         pks.push(party3_key.public_key.clone());
@@ -174,7 +175,7 @@ mod tests {
         assert_eq!(party1_key_agg.apk, party2_key_agg.apk);
         assert_eq!(party1_key_agg.apk, party3_key_agg.apk);
         // compute R' = sum(Ri):
-        let mut Ri: Vec<GE> = Vec::new();
+        let mut Ri = Vec::new();
         Ri.push(party1_ephemeral_key.R.clone());
         Ri.push(party2_ephemeral_key.R.clone());
         Ri.push(party3_ephemeral_key.R.clone());
@@ -213,7 +214,6 @@ mod tests {
         assert!(verify(&signature, &message, &party1_key_agg.apk).is_ok())
     }
 
-    use curv::elliptic::curves::traits::ECScalar;
     use hex::decode;
     #[test]
     fn test_verify_standard_sig() {
@@ -224,28 +224,22 @@ mod tests {
         // R = 311b4390d1d92ee3c56d66e22c7cacf13fba86c44b61769b81aa26680af02d1b
         // s = 5a180452743fac943b53728e4cbea288a566ba49f7695808d53b3f9f1cd6ed02
 
-        let eight_bn = BigInt::from(8);
-        let eight: FE = ECScalar::from(&eight_bn);
-        let eight_inv = eight.invert();
-
         let msg_str = "05b5d2c43079b8d696ebb21f6e1d1feb7c4aa7c5ba47eea4940f549ebb212e3d";
         let message = decode(msg_str).unwrap();
 
         let pk_str = "3b97c9279bbb4b501b84d7c3506d5f018a1e1df1d86daab5e97d888af44887eb";
         let pk_dec = decode(pk_str).unwrap();
-        let pk: GE = ECPoint::from_bytes(&pk_dec[..]).unwrap();
-        let pk = pk * eight_inv;
+        let pk = Point::from_bytes(&pk_dec[..]).unwrap();
 
         let R_str = "311b4390d1d92ee3c56d66e22c7cacf13fba86c44b61769b81aa26680af02d1b";
         let R_dec = decode(R_str).unwrap();
-        let R: GE = ECPoint::from_bytes(&R_dec[..]).unwrap();
-        let R = R * eight_inv;
+        let R = Point::from_bytes(&R_dec[..]).unwrap();
 
         let s_str = "5a180452743fac943b53728e4cbea288a566ba49f7695808d53b3f9f1cd6ed02";
         let mut s_dec = decode(s_str).unwrap();
         s_dec.reverse();
         let s_bn = BigInt::from_bytes(&s_dec[..]);
-        let s: FE = ECScalar::from(&s_bn);
+        let s = Scalar::from(&s_bn);
 
         let sig = Signature { R, s };
         assert!(verify(&sig, &message, &pk).is_ok())
