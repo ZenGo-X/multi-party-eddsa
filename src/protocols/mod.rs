@@ -15,10 +15,10 @@
     @license GPL-3.0+ <https://github.com/KZen-networks/multi-party-ed25519/blob/master/LICENSE>
 */
 use curv::arithmetic::Converter;
+use curv::BigInt;
 use curv::cryptographic_primitives::proofs::ProofError;
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
-use curv::BigInt;
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use sha2::{Digest, Sha512};
 
 // simple ed25519 based on rfc8032
@@ -103,3 +103,71 @@ impl Signature {
 }
 
 
+
+#[cfg(test)]
+mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use curv::elliptic::curves::{Point, Scalar};
+    use rand_xoshiro::rand_core::{RngCore, SeedableRng};
+    use rand_xoshiro::Xoshiro256PlusPlus;
+
+    use protocols::{ExpendedKeyPair, Signature};
+
+    #[test]
+    fn test_generate_pubkey_dalek() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        println!("test_generate_pubkey_dalek seed: {}", now);
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(now as _);
+
+        let mut privkey = [0u8; 32];
+        for _ in 0..4096 {
+            rng.fill_bytes(&mut privkey);
+            let zengo_keypair = ExpendedKeyPair::create_from_private_key(privkey);
+            let dalek_secret = ed25519_dalek::SecretKey::from_bytes(&privkey)
+                .expect("Can only fail if bytes.len()<32");
+            let dalek_pub = ed25519_dalek::PublicKey::from(&dalek_secret);
+
+            let zengo_pub_serialized = &*zengo_keypair.public_key.to_bytes(true);
+            let dalek_pub_serialized = dalek_pub.to_bytes();
+
+            assert_eq!(zengo_pub_serialized, dalek_pub_serialized);
+        }
+    }
+
+    #[test]
+    fn test_verify_dalek_signatures() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        println!("test_verify_dalek_signatures seed: {}", now);
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(now as _);
+
+        let mut msg = [0u8; 64];
+        let mut privkey = [0u8; 32];
+        for msg_len in 0..msg.len() {
+            let msg = &mut msg[..msg_len];
+            for _ in 0..20 {
+                rng.fill_bytes(&mut privkey);
+                rng.fill_bytes(msg);
+                let dalek_secret = ed25519_dalek::ExpandedSecretKey::from(
+                    &ed25519_dalek::SecretKey::from_bytes(&privkey)
+                        .expect("Can only fail if bytes.len()<32"),
+                );
+                let dalek_pub = ed25519_dalek::PublicKey::from(&dalek_secret);
+                let dalek_sig = dalek_secret.sign(msg, &dalek_pub);
+
+                let zengo_sig = Signature {
+                    R: Point::from_bytes(&dalek_sig.as_ref()[..32]).unwrap(),
+                    s: Scalar::from_bytes(&dalek_sig.as_ref()[32..]).unwrap(),
+                };
+                let zengo_pubkey = Point::from_bytes(&dalek_pub.to_bytes()).unwrap();
+                zengo_sig.verify(msg, &zengo_pubkey).unwrap();
+            }
+        }
+    }
+}

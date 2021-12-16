@@ -23,6 +23,11 @@ extern crate rand;
 extern crate serde_json;
 extern crate sha2;
 
+#[cfg(test)]
+extern crate ed25519_dalek;
+#[cfg(test)]
+extern crate rand_xoshiro;
+
 pub mod protocols;
 
 #[derive(Copy, PartialEq, Eq, Clone, Debug)]
