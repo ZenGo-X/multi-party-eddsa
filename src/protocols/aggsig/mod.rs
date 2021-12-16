@@ -24,12 +24,12 @@ use super::ExpendedKeyPair;
 pub use curv::arithmetic::traits::Samplable;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives::hashing::DigestExt;
-use curv::cryptographic_primitives::proofs::*;
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
 
 pub use curv::arithmetic::traits::Converter;
 use curv::cryptographic_primitives::commitments::traits::Commitment;
+use protocols::Signature;
 use sha2::{digest::Digest, Sha512};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -96,127 +96,85 @@ pub struct SignSecondMsg {
     pub blind_factor: BigInt,
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct Signature {
-    pub R: Point<Ed25519>,
-    pub s: Scalar<Ed25519>,
-}
-
-impl Signature {
-    pub fn create_ephemeral_key_and_commit(
-        keys: &ExpendedKeyPair,
-        message: &[u8],
-    ) -> (EphemeralKey, SignFirstMsg, SignSecondMsg) {
-        // here we deviate from the spec, by introducing  non-deterministic element (random number)
-        // to the nonce
-        let r = Sha512::new()
-            .chain_bigint(&BigInt::from(2))
-            .chain_bigint(&keys.expended_private_key.prefix.to_bigint())
-            .chain_bigint(&BigInt::from_bytes(message))
-            .chain_bigint(&Scalar::<Ed25519>::random().to_bigint())
-            .result_bigint();
-        let r = reverse_bn_to_fe(&r);
-        let R = Point::generator() * &r;
-        let (commitment, blind_factor) =
-            HashCommitment::<Sha512>::create_commitment(&R.y_coord().unwrap());
-        (
-            EphemeralKey { r, R: R.clone() },
-            SignFirstMsg { commitment },
-            SignSecondMsg { R, blind_factor },
-        )
-    }
-    pub fn k(R_tot: &Point<Ed25519>, apk: &Point<Ed25519>, message: &[u8]) -> Scalar<Ed25519> {
-        let k = Sha512::new()
-            .chain_point(R_tot)
-            .chain_point(apk)
-            .chain_bigint(&BigInt::from_bytes(message))
-            .result_bigint();
-        let k = reverse_bn_to_fe(&k);
-        k
-    }
-    pub fn get_R_tot(mut R: Vec<Point<Ed25519>>) -> Point<Ed25519> {
-        let R1 = R.remove(0);
-        let sum = R
-            .iter()
-            .fold(R1, |acc: Point<Ed25519>, Ri: &Point<Ed25519>| acc + Ri);
-        sum
-    }
-
-    pub fn partial_sign(
-        r: &Scalar<Ed25519>,
-        keys: &ExpendedKeyPair,
-        k: &Scalar<Ed25519>,
-        a: &Scalar<Ed25519>,
-        R_tot: &Point<Ed25519>,
-    ) -> Signature {
-        let k_mul_sk = k * &keys.expended_private_key.private_key;
-        let k_mul_sk_mul_ai = k_mul_sk * a;
-        let s = r + k_mul_sk_mul_ai;
-        Signature {
-            R: R_tot.clone(),
-            s,
-        }
-    }
-
-    pub fn sign_single(message: &[u8], keys: &ExpendedKeyPair) -> Signature {
-        let r = Sha512::new()
-            .chain(&*keys.expended_private_key.prefix.to_bytes())
-            .chain(message)
-            .result_scalar();
-        let R = &r * Point::generator();
-        let mut k = Sha512::new()
-            .chain(&*R.to_bytes(true))
-            .chain(&*keys.public_key.to_bytes(true))
-            .chain(message)
-            .finalize();
-        // reverse because BigInt uses BigEndian.
-        k.reverse();
-        let k = Scalar::from_bigint(&BigInt::from_bytes(&k));
-
-        let k_mul_sk = k * &keys.expended_private_key.private_key;
-        let s = r + k_mul_sk;
-        Signature { R, s }
-    }
-
-    pub fn add_signature_parts(mut sigs: Vec<Signature>) -> Signature {
-        //test equality of group elements:
-        let candidate_R = &sigs[0].R.clone();
-        assert!(sigs.iter().all(|x| &x.R == candidate_R));
-        //sum s part of the signature:
-
-        let s1 = sigs.remove(0);
-        let sum = sigs
-            .iter()
-            .fold(s1.s, |acc: Scalar<Ed25519>, si: &Signature| acc + &si.s);
-        Signature { s: sum, R: s1.R }
-    }
-}
-
-pub fn verify(
-    signature: &Signature,
+pub fn create_ephemeral_key_and_commit(
+    keys: &ExpendedKeyPair,
     message: &[u8],
-    public_key: &Point<Ed25519>,
-) -> Result<(), ProofError> {
+) -> (EphemeralKey, SignFirstMsg, SignSecondMsg) {
+    // here we deviate from the spec, by introducing  non-deterministic element (random number)
+    // to the nonce
+    let r = Sha512::new()
+        .chain_bigint(&BigInt::from(2))
+        .chain_bigint(&keys.expended_private_key.prefix.to_bigint())
+        .chain_bigint(&BigInt::from_bytes(message))
+        .chain_bigint(&Scalar::<Ed25519>::random().to_bigint())
+        .result_bigint();
+    let r = reverse_bn_to_fe(&r);
+    let R = Point::generator() * &r;
+    let (commitment, blind_factor) =
+        HashCommitment::<Sha512>::create_commitment(&R.y_coord().unwrap());
+    (
+        EphemeralKey { r, R: R.clone() },
+        SignFirstMsg { commitment },
+        SignSecondMsg { R, blind_factor },
+    )
+}
+pub fn get_R_tot(mut R: Vec<Point<Ed25519>>) -> Point<Ed25519> {
+    let R1 = R.remove(0);
+    let sum = R
+        .iter()
+        .fold(R1, |acc: Point<Ed25519>, Ri: &Point<Ed25519>| acc + Ri);
+    sum
+}
+
+pub fn partial_sign(
+    r: &Scalar<Ed25519>,
+    keys: &ExpendedKeyPair,
+    a: &Scalar<Ed25519>,
+    R_tot: &Point<Ed25519>,
+    agg_pubkey: &Point<Ed25519>,
+    msg: &[u8],
+) -> Signature {
+    let k = Signature::k(R_tot, agg_pubkey, msg);
+    let k_mul_sk = k * &keys.expended_private_key.private_key;
+    let k_mul_sk_mul_ai = k_mul_sk * a;
+    let s = r + k_mul_sk_mul_ai;
+    Signature {
+        R: R_tot.clone(),
+        s,
+    }
+}
+
+pub fn sign_single(message: &[u8], keys: &ExpendedKeyPair) -> Signature {
+    let r = Sha512::new()
+        .chain(&*keys.expended_private_key.prefix.to_bytes())
+        .chain(message)
+        .result_scalar();
+    let R = &r * Point::generator();
     let mut k = Sha512::new()
-        .chain(&*signature.R.to_bytes(true))
-        .chain(&*public_key.to_bytes(true))
+        .chain(&*R.to_bytes(true))
+        .chain(&*keys.public_key.to_bytes(true))
         .chain(message)
         .finalize();
     // reverse because BigInt uses BigEndian.
     k.reverse();
     let k = Scalar::from_bigint(&BigInt::from_bytes(&k));
 
-    let A = public_key;
+    let k_mul_sk = k * &keys.expended_private_key.private_key;
+    let s = r + k_mul_sk;
+    Signature { R, s }
+}
 
-    let kA = A * k;
-    let R_plus_kA = kA + &signature.R;
-    let sG = &signature.s * Point::generator();
+pub fn add_signature_parts(mut sigs: Vec<Signature>) -> Signature {
+    //test equality of group elements:
+    let candidate_R = &sigs[0].R.clone();
+    assert!(sigs.iter().all(|x| &x.R == candidate_R));
+    //sum s part of the signature:
 
-    if R_plus_kA == sG {
-        Ok(())
-    } else {
-        Err(ProofError)
-    }
+    let s1 = sigs.pop().unwrap();
+    let sum = sigs
+        .iter()
+        .fold(s1.s, |acc: Scalar<Ed25519>, si: &Signature| acc + &si.s);
+    Signature { s: sum, R: s1.R }
 }
 
 pub fn test_com(r_to_test: &Point<Ed25519>, blind_factor: &BigInt, comm: &BigInt) -> bool {

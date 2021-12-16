@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 /*
     Multisig ed25519
 
@@ -13,7 +14,10 @@
 
     @license GPL-3.0+ <https://github.com/KZen-networks/multi-party-ed25519/blob/master/LICENSE>
 */
+use curv::arithmetic::Converter;
+use curv::cryptographic_primitives::proofs::ProofError;
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
+use curv::BigInt;
 use rand::{thread_rng, Rng};
 use sha2::{Digest, Sha512};
 
@@ -63,3 +67,39 @@ impl ExpendedKeyPair {
         }
     }
 }
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct Signature {
+    pub R: Point<Ed25519>,
+    pub s: Scalar<Ed25519>,
+}
+
+impl Signature {
+    pub fn verify(&self, message: &[u8], public_key: &Point<Ed25519>) -> Result<(), ProofError> {
+        let k = Self::k(&self.R, public_key, message);
+        let A = public_key;
+
+        let kA = A * k;
+        let R_plus_kA = kA + &self.R;
+        let sG = &self.s * Point::generator();
+
+        if R_plus_kA == sG {
+            Ok(())
+        } else {
+            Err(ProofError)
+        }
+    }
+
+    pub(crate) fn k(R: &Point<Ed25519>, PK: &Point<Ed25519>, message: &[u8]) -> Scalar<Ed25519> {
+        let mut k = Sha512::new()
+            .chain(&*R.to_bytes(true))
+            .chain(&*PK.to_bytes(true))
+            .chain(message)
+            .finalize();
+        // reverse because BigInt uses BigEndian.
+        k.reverse();
+        Scalar::from_bigint(&BigInt::from_bytes(&k))
+    }
+}
+
+

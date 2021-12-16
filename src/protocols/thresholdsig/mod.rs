@@ -11,7 +11,7 @@
     version 3 of the License, or (at your option) any later version.
     @license GPL-3.0+ <https://github.com/KZen-networks/multi-party-eddsa/blob/master/LICENSE>
 */
-use Error::{self, InvalidKey, InvalidSS, InvalidSig};
+use Error::{self, InvalidKey, InvalidSS};
 
 use curv::arithmetic::traits::*;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
@@ -20,6 +20,7 @@ use curv::cryptographic_primitives::hashing::DigestExt;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::{SecretShares, VerifiableSS};
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
+use protocols::Signature;
 use sha2::{digest::Digest, Sha512};
 
 const SECURITY: usize = 256;
@@ -63,12 +64,6 @@ pub struct EphemeralSharedKeys {
 pub struct LocalSig {
     gamma_i: Scalar<Ed25519>,
     k: Scalar<Ed25519>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Signature {
-    pub sigma: Scalar<Ed25519>,
-    pub R: Point<Ed25519>,
 }
 
 impl Keys {
@@ -393,44 +388,21 @@ impl LocalSig {
     }
 }
 
-impl Signature {
-    pub fn generate(
-        vss_sum_local_sigs: &VerifiableSS<Ed25519>,
-        local_sig_vec: &Vec<LocalSig>,
-        parties_index_vec: &[u16],
-        R: Point<Ed25519>,
-    ) -> Signature {
-        let gamma_vec = (0..parties_index_vec.len())
-            .map(|i| local_sig_vec[i].gamma_i.clone())
-            .collect::<Vec<Scalar<Ed25519>>>();
-        let reconstruct_limit = usize::from(vss_sum_local_sigs.parameters.threshold) + 1;
-        let sigma = vss_sum_local_sigs.reconstruct(
-            &parties_index_vec[0..reconstruct_limit],
-            &gamma_vec[0..reconstruct_limit],
-        );
-        Signature { sigma, R }
-    }
-
-    pub fn verify(&self, message: &[u8], pubkey_y: &Point<Ed25519>) -> Result<(), Error> {
-        let e_bn = Sha512::new()
-            .chain_point(&self.R)
-            .chain_point(pubkey_y)
-            .chain(message)
-            .result_bigint();
-
-        let e: Scalar<Ed25519> = Scalar::from(&e_bn);
-
-        let g = Point::generator();
-        let sigma_g = g * &self.sigma;
-        let e_y = pubkey_y * &e;
-        let e_y_plus_v = e_y + &self.R;
-
-        if e_y_plus_v == sigma_g {
-            Ok(())
-        } else {
-            Err(InvalidSig)
-        }
-    }
+pub fn generate(
+    vss_sum_local_sigs: &VerifiableSS<Ed25519>,
+    local_sig_vec: &Vec<LocalSig>,
+    parties_index_vec: &[u16],
+    R: Point<Ed25519>,
+) -> Signature {
+    let gamma_vec = (0..parties_index_vec.len())
+        .map(|i| local_sig_vec[i].gamma_i.clone())
+        .collect::<Vec<Scalar<Ed25519>>>();
+    let reconstruct_limit = usize::from(vss_sum_local_sigs.parameters.threshold) + 1;
+    let s = vss_sum_local_sigs.reconstruct(
+        &parties_index_vec[0..reconstruct_limit],
+        &gamma_vec[0..reconstruct_limit],
+    );
+    Signature { s, R }
 }
 
 mod test;
