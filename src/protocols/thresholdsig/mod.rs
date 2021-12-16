@@ -20,16 +20,14 @@ use curv::cryptographic_primitives::hashing::DigestExt;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::{SecretShares, VerifiableSS};
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
-use protocols::Signature;
+use protocols::{ExpendedKeyPair, Signature};
 use sha2::{digest::Digest, Sha512};
 
 const SECURITY: usize = 256;
 
 // u_i is private key and {u__i, prefix} are extended private key.
 pub struct Keys {
-    pub u_i: Scalar<Ed25519>,
-    pub y_i: Point<Ed25519>,
-    pub prefix: Scalar<Ed25519>,
+    pub keypair: ExpendedKeyPair,
     pub party_index: u16,
 }
 
@@ -67,47 +65,24 @@ pub struct LocalSig {
 }
 
 impl Keys {
-    pub fn phase1_create(index: u16) -> Keys {
-        let sk: Scalar<Ed25519> = Scalar::random();
-        Self::phase1_create_from_private_key_internal(index, &sk)
-    }
-
-    pub fn phase1_create_from_private_key(index: u16, secret: &BigInt) -> Keys {
-        let sk: Scalar<Ed25519> = Scalar::from(secret);
-        Self::phase1_create_from_private_key_internal(index, &sk)
-    }
-
-    fn phase1_create_from_private_key_internal(index: u16, sk: &Scalar<Ed25519>) -> Keys {
-        let ec_point = Point::generator();
-        let h = Sha512::new().chain_scalar(sk).result_bigint();
-        let h_vec = BigInt::to_bytes(&h);
-        let mut h_vec_padded = vec![0; 64 - h_vec.len()]; // ensure hash result is padded to 64 bytes
-        h_vec_padded.extend_from_slice(&h_vec);
-        let mut private_key: [u8; 32] = [0u8; 32];
-        let mut prefix: [u8; 32] = [0u8; 32];
-        prefix.copy_from_slice(&h_vec_padded[32..64]);
-        private_key.copy_from_slice(&h_vec_padded[00..32]);
-        private_key[0] &= 248;
-        private_key[31] &= 63;
-        private_key[31] |= 64;
-        let private_key = &private_key[..private_key.len()];
-        let prefix = &prefix[..prefix.len()];
-        let private_key: Scalar<Ed25519> = Scalar::from(&BigInt::from_bytes(private_key));
-        let prefix: Scalar<Ed25519> = Scalar::from(&BigInt::from_bytes(prefix));
-        let public_key = ec_point * &private_key;
-
+    pub fn phase1_create(party_index: u16) -> Keys {
         Keys {
-            u_i: private_key,
-            y_i: public_key,
-            prefix,
-            party_index: index.clone(),
+            keypair: ExpendedKeyPair::create(),
+            party_index,
+        }
+    }
+
+    pub fn phase1_create_from_private_key(party_index: u16, secret: [u8; 32]) -> Keys {
+        Keys {
+            keypair: ExpendedKeyPair::create_from_private_key(secret),
+            party_index,
         }
     }
 
     pub fn phase1_broadcast(&self) -> (KeyGenBroadcastMessage1, BigInt) {
         let blind_factor = BigInt::sample(SECURITY);
         let com = HashCommitment::<Sha512>::create_commitment_with_user_defined_randomness(
-            &self.y_i.y_coord().unwrap(),
+            &self.keypair.public_key.y_coord().unwrap(),
             &blind_factor,
         );
         let bcm1 = KeyGenBroadcastMessage1 { com };
@@ -139,7 +114,7 @@ impl Keys {
         let (vss_scheme, secret_shares) = VerifiableSS::share_at_indices(
             params.threshold,
             params.share_count,
-            &self.u_i,
+            &self.keypair.expended_private_key.private_key,
             &parties,
         );
 
@@ -181,7 +156,7 @@ impl Keys {
                 Ok(SharedKeys {
                     y,
                     x_i,
-                    prefix: self.prefix.clone(),
+                    prefix: self.keypair.expended_private_key.prefix.clone(),
                 })
             }
             false => Err(InvalidSS),
@@ -201,7 +176,7 @@ impl EphemeralKey {
         // here we deviate from the spec, by introducing  non-deterministic element (random number)
         // to the nonce
         let r_local = Sha512::new()
-            .chain_scalar(&keys.prefix)
+            .chain_scalar(&keys.keypair.expended_private_key.prefix)
             .chain(message)
             .chain_scalar(&Scalar::<Ed25519>::random())
             .result_bigint();
@@ -323,12 +298,7 @@ impl LocalSig {
         let r_i = local_ephemaral_key.r_i.clone();
         let s_i = local_private_key.x_i.clone();
 
-        let e_bn = Sha512::new()
-            .chain_point(&local_ephemaral_key.R)
-            .chain_point(&local_private_key.y)
-            .chain(message)
-            .result_bigint();
-        let k = Scalar::from_bigint(&e_bn);
+        let k = Signature::k(&local_ephemaral_key.R, &local_private_key.y, message);
         let gamma_i = r_i + &k * s_i;
 
         LocalSig { gamma_i, k }

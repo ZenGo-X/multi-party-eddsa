@@ -15,10 +15,10 @@
     @license GPL-3.0+ <https://github.com/KZen-networks/multi-party-ed25519/blob/master/LICENSE>
 */
 use curv::arithmetic::Converter;
-use curv::BigInt;
 use curv::cryptographic_primitives::proofs::ProofError;
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
-use rand::{Rng, thread_rng};
+use curv::BigInt;
+use rand::{thread_rng, Rng};
 use sha2::{Digest, Sha512};
 
 // simple ed25519 based on rfc8032
@@ -101,8 +101,6 @@ impl Signature {
         Scalar::from_bigint(&BigInt::from_bytes(&k))
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
