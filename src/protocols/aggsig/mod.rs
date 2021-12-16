@@ -50,29 +50,23 @@ pub struct KeyPair {
 
 impl KeyPair {
     pub fn create() -> KeyPair {
-        let secret = BigInt::sample(256);
-        Self::create_from_private_key(&secret)
+        let secret = thread_rng().gen();
+        Self::create_from_private_key(secret)
     }
 
-    pub fn create_from_private_key(secret: &BigInt) -> KeyPair {
-        let ec_point = Point::generator();
-        let h = Sha512::new().chain_bigint(secret).result_bigint();
-        let h_vec = BigInt::to_bytes(&h);
-        let mut h_vec_padded = vec![0; 64 - h_vec.len()]; // ensure hash result is padded to 64 bytes
-        h_vec_padded.extend_from_slice(&h_vec);
+    pub fn create_from_private_key(secret: [u8; 32]) -> KeyPair {
+        let h = Sha512::new().chain(secret).finalize();
         let mut private_key: [u8; 32] = [0u8; 32];
         let mut prefix: [u8; 32] = [0u8; 32];
-        prefix.copy_from_slice(&h_vec_padded[32..64]);
-        private_key.copy_from_slice(&h_vec_padded[00..32]);
+        prefix.copy_from_slice(&h[32..64]);
+        private_key.copy_from_slice(&h[0..32]);
         private_key[0] &= 248;
         private_key[31] &= 63;
         private_key[31] |= 64;
-        let private_key = &mut private_key[..32];
-        private_key.reverse();
-        let prefix = &prefix[..prefix.len()];
-        let private_key = Scalar::from_bigint(&BigInt::from_bytes(private_key));
-        let prefix = Scalar::from_bigint(&BigInt::from_bytes(prefix));
-        let public_key = ec_point * &private_key;
+        let private_key = Scalar::from_bytes(&private_key)
+            .expect("private_key is the right length, so can't fail");
+        let prefix = Scalar::from_bytes(&prefix).expect("prefix is the right, so can't fail");
+        let public_key = Point::generator() * &private_key;
         KeyPair {
             public_key,
             expended_private_key: ExpendedPrivateKey {
@@ -121,6 +115,7 @@ impl KeyPair {
         }
     }
 }
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EphemeralKey {
     pub r: Scalar<Ed25519>,
@@ -200,19 +195,21 @@ impl Signature {
         }
     }
 
-    pub fn sign_single(message: &[u8], keys: &KeyPair) -> Signature {
+    pub fn sign_single(message: &[u8], keys: &ExpendedKeyPair) -> Signature {
         let r = Sha512::new()
-            .chain_scalar(&keys.expended_private_key.prefix)
-            .chain_bigint(&BigInt::from_bytes(message))
-            .result_bigint();
-        let r = Scalar::from_bigint(&r);
+            .chain(&*keys.expended_private_key.prefix.to_bytes())
+            .chain(message)
+            .result_scalar();
         let R = &r * Point::generator();
-        let k = Sha512::new()
-            .chain_point(&R)
-            .chain_point(&keys.public_key)
-            .chain_bigint(&BigInt::from_bytes(message))
-            .result_bigint();
-        let k = reverse_bn_to_fe(&k);
+        let mut k = Sha512::new()
+            .chain(&*R.to_bytes(true))
+            .chain(&*keys.public_key.to_bytes(true))
+            .chain(message)
+            .finalize();
+        // reverse because BigInt uses BigEndian.
+        k.reverse();
+        let k = Scalar::from_bigint(&BigInt::from_bytes(&k));
+
         let k_mul_sk = k * &keys.expended_private_key.private_key;
         let s = r + k_mul_sk;
         Signature { R, s }
@@ -237,20 +234,20 @@ pub fn verify(
     message: &[u8],
     public_key: &Point<Ed25519>,
 ) -> Result<(), ProofError> {
-    let k = Sha512::new()
-        .chain_point(&signature.R)
-        .chain_point(&public_key)
-        .chain_bigint(&BigInt::from_bytes(message))
-        .result_bigint();
+    let mut k = Sha512::new()
+        .chain(&*signature.R.to_bytes(true))
+        .chain(&*public_key.to_bytes(true))
+        .chain(message)
+        .finalize();
+    // reverse because BigInt uses BigEndian.
+    k.reverse();
+    let k = Scalar::from_bigint(&BigInt::from_bytes(&k));
 
-    let k_fe = reverse_bn_to_fe(&k);
+    let A = public_key;
 
-    let base_point = Point::generator();
-
-    let A = public_key.clone();
-    let kA = A * k_fe;
-    let sG = base_point * &signature.s;
-    let R_plus_kA = kA + &(signature.R);
+    let kA = A * k;
+    let R_plus_kA = kA + &signature.R;
+    let sG = &signature.s * Point::generator();
 
     if R_plus_kA == sG {
         Ok(())
