@@ -18,6 +18,9 @@
 //! Simple ed25519
 //!
 //! See https://tools.ietf.org/html/rfc8032
+
+use super::ExpendedKeyPair;
+
 pub use curv::arithmetic::traits::Samplable;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives::hashing::DigestExt;
@@ -27,14 +30,7 @@ use curv::BigInt;
 
 pub use curv::arithmetic::traits::Converter;
 use curv::cryptographic_primitives::commitments::traits::Commitment;
-use rand::{thread_rng, Rng};
 use sha2::{digest::Digest, Sha512};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ExpendedPrivateKey {
-    pub prefix: Scalar<Ed25519>,
-    private_key: Scalar<Ed25519>,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyAgg {
@@ -42,40 +38,7 @@ pub struct KeyAgg {
     pub hash: Scalar<Ed25519>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct KeyPair {
-    pub public_key: Point<Ed25519>,
-    expended_private_key: ExpendedPrivateKey,
-}
-
-impl KeyPair {
-    pub fn create() -> KeyPair {
-        let secret = thread_rng().gen();
-        Self::create_from_private_key(secret)
-    }
-
-    pub fn create_from_private_key(secret: [u8; 32]) -> KeyPair {
-        let h = Sha512::new().chain(secret).finalize();
-        let mut private_key: [u8; 32] = [0u8; 32];
-        let mut prefix: [u8; 32] = [0u8; 32];
-        prefix.copy_from_slice(&h[32..64]);
-        private_key.copy_from_slice(&h[0..32]);
-        private_key[0] &= 248;
-        private_key[31] &= 63;
-        private_key[31] |= 64;
-        let private_key = Scalar::from_bytes(&private_key)
-            .expect("private_key is the right length, so can't fail");
-        let prefix = Scalar::from_bytes(&prefix).expect("prefix is the right, so can't fail");
-        let public_key = Point::generator() * &private_key;
-        KeyPair {
-            public_key,
-            expended_private_key: ExpendedPrivateKey {
-                prefix,
-                private_key,
-            },
-        }
-    }
-
+impl KeyAgg {
     pub fn key_aggregation_n(pks: &Vec<Point<Ed25519>>, party_index: &usize) -> KeyAgg {
         let bn_1 = BigInt::from(1);
         let x_coor_vec: Vec<BigInt> = (0..pks.len())
@@ -141,7 +104,7 @@ pub struct Signature {
 
 impl Signature {
     pub fn create_ephemeral_key_and_commit(
-        keys: &KeyPair,
+        keys: &ExpendedKeyPair,
         message: &[u8],
     ) -> (EphemeralKey, SignFirstMsg, SignSecondMsg) {
         // here we deviate from the spec, by introducing  non-deterministic element (random number)
@@ -181,7 +144,7 @@ impl Signature {
 
     pub fn partial_sign(
         r: &Scalar<Ed25519>,
-        keys: &KeyPair,
+        keys: &ExpendedKeyPair,
         k: &Scalar<Ed25519>,
         a: &Scalar<Ed25519>,
         R_tot: &Point<Ed25519>,

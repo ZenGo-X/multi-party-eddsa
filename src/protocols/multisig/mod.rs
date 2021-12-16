@@ -17,7 +17,9 @@
 //! Schnorr {n,n}-Signatures based on Accountable-Subgroup Multisignatures
 //!
 //See (https://pdfs.semanticscholar.org/6bf4/f9450e7a8e31c106a8670b961de4735589cf.pdf)
-use curv::arithmetic::traits::Converter;
+
+use super::ExpendedKeyPair;
+
 use curv::cryptographic_primitives::hashing::DigestExt;
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
@@ -25,83 +27,40 @@ use protocols::multisig;
 
 use sha2::{digest::Digest, Sha512};
 
-// TODO: move to a common location to be used by all protocols.
-#[derive(Debug, Clone)]
-pub struct ExpendedPrivateKey {
-    pub prefix: Scalar<Ed25519>,
-    private_key: Scalar<Ed25519>,
-}
 // I is a private key and public key keypair, X is a commitment of the form X = xG used only in key generation (see p11 in the paper)
 #[derive(Debug, Clone)]
 pub struct Keys {
     pub I: ExpendedKeyPair,
-    pub X: KeyPair,
+    pub X: SingleKeyPair,
 }
 
 #[derive(Debug, Clone)]
-pub struct ExpendedKeyPair {
-    pub public_key: Point<Ed25519>,
-    expended_private_key: ExpendedPrivateKey,
-}
-
-#[derive(Debug, Clone)]
-pub struct KeyPair {
+pub struct SingleKeyPair {
     pub public_key: Point<Ed25519>,
     private_key: Scalar<Ed25519>,
 }
-impl KeyPair {
-    pub fn create() -> KeyPair {
+impl SingleKeyPair {
+    pub fn create() -> SingleKeyPair {
         let ec_point = Point::generator();
         let private_key = Scalar::random();
         let public_key = ec_point * &private_key;
-        KeyPair {
+        SingleKeyPair {
             public_key,
             private_key,
         }
     }
-    pub fn create_from_private_key(private_key: Scalar<Ed25519>) -> KeyPair {
+    pub fn create_from_private_key(private_key: Scalar<Ed25519>) -> SingleKeyPair {
         let g = Point::generator();
         let public_key = g * &private_key;
 
-        KeyPair {
+        SingleKeyPair {
             public_key,
             private_key,
         }
     }
 }
+
 impl ExpendedKeyPair {
-    pub fn create() -> ExpendedKeyPair {
-        let sk = Scalar::random();
-        Self::create_from_private_key(sk)
-    }
-
-    pub fn create_from_private_key(sk: Scalar<Ed25519>) -> ExpendedKeyPair {
-        let ec_point = Point::generator();
-        let h = Sha512::new().chain_scalar(&sk).result_bigint();
-        let h_vec = BigInt::to_bytes(&h);
-        let mut h_vec_padded = vec![0; 64 - h_vec.len()]; // ensure hash result is padded to 64 bytes
-        h_vec_padded.extend_from_slice(&h_vec);
-        let mut private_key: [u8; 32] = [0u8; 32];
-        let mut prefix: [u8; 32] = [0u8; 32];
-        prefix.copy_from_slice(&h_vec_padded[32..64]);
-        private_key.copy_from_slice(&h_vec_padded[00..32]);
-        private_key[0] &= 248;
-        private_key[31] &= 63;
-        private_key[31] |= 64;
-        let private_key = &private_key[..private_key.len()];
-        let prefix = &prefix[..prefix.len()];
-        let private_key = Scalar::from_bigint(&BigInt::from_bytes(private_key));
-        let prefix = Scalar::from(&BigInt::from_bytes(prefix));
-        let public_key = ec_point * &private_key;
-        ExpendedKeyPair {
-            public_key,
-            expended_private_key: ExpendedPrivateKey {
-                prefix,
-                private_key,
-            },
-        }
-    }
-
     pub fn update_key_pair(&mut self, to_add: Scalar<Ed25519>) {
         self.expended_private_key.private_key = to_add + &self.expended_private_key.private_key;
         let g = Point::generator();
@@ -112,19 +71,19 @@ impl ExpendedKeyPair {
 impl Keys {
     pub fn create() -> Keys {
         let I = ExpendedKeyPair::create();
-        let X = KeyPair::create();
+        let X = SingleKeyPair::create();
         Keys { I, X }
     }
 
-    pub fn create_from_private_keys(priv_I: Scalar<Ed25519>, priv_X: Scalar<Ed25519>) -> Keys {
+    pub fn create_from_private_keys(priv_I: [u8; 32], priv_X: Scalar<Ed25519>) -> Keys {
         let I = ExpendedKeyPair::create_from_private_key(priv_I);
-        let X = KeyPair::create_from_private_key(priv_X);
+        let X = SingleKeyPair::create_from_private_key(priv_X);
         Keys { I, X }
     }
 
-    pub fn create_from(secret_share: Scalar<Ed25519>) -> Keys {
+    pub fn create_from(secret_share: [u8; 32]) -> Keys {
         let I = ExpendedKeyPair::create_from_private_key(secret_share);
-        let X = KeyPair::create();
+        let X = SingleKeyPair::create();
         Keys { I, X }
     }
 
@@ -177,7 +136,7 @@ fn hash_4(key_list: &[Point<Ed25519>]) -> Scalar<Ed25519> {
 }
 
 pub struct EphKey {
-    pub eph_key_pair: KeyPair,
+    pub eph_key_pair: SingleKeyPair,
 }
 
 impl EphKey {
@@ -192,7 +151,7 @@ impl EphKey {
             .result_bigint();
         let r_fe = Scalar::from_bigint(&r);
         let g = Point::generator();
-        let eph_key_pair = KeyPair {
+        let eph_key_pair = SingleKeyPair {
             public_key: g * &r_fe,
             private_key: r_fe,
         };
