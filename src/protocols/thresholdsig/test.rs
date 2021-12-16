@@ -12,9 +12,12 @@
 */
 #[cfg(test)]
 mod tests {
+
     use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-    use curv::elliptic::curves::{Ed25519, Point, Scalar};
-    use protocols::thresholdsig::*;
+    use curv::elliptic::curves::{Ed25519, Point};
+    use protocols::thresholdsig::{
+        self, EphemeralKey, EphemeralSharedKeys, Keys, LocalSig, Parameters, SharedKeys,
+    };
 
     #[test]
     fn test_t2_n4() {
@@ -60,7 +63,7 @@ mod tests {
         assert!(verify_local_sig.is_ok());
         let vss_sum_local_sigs = verify_local_sig.unwrap();
         let signature =
-            Signature::generate(&vss_sum_local_sigs, &local_sig_vec, &parties_index_vec, R);
+            thresholdsig::generate(&vss_sum_local_sigs, &local_sig_vec, &parties_index_vec, R);
         let verify_sig = signature.verify(&message, &Y);
         assert!(verify_sig.is_ok());
     }
@@ -123,7 +126,7 @@ mod tests {
 
         /// each party / dealer can generate the signature
         let signature =
-            Signature::generate(&vss_sum_local_sigs, &local_sig_vec, &parties_index_vec, R);
+            thresholdsig::generate(&vss_sum_local_sigs, &local_sig_vec, &parties_index_vec, R);
         let verify_sig = signature.verify(&message, &Y);
         assert!(verify_sig.is_ok());
     }
@@ -156,7 +159,7 @@ mod tests {
         }
 
         let y_vec = (0..usize::from(n))
-            .map(|i| party_keys_vec[i].y_i.clone())
+            .map(|i| party_keys_vec[i].keypair.public_key.clone())
             .collect::<Vec<_>>();
         let mut y_vec_iter = y_vec.iter();
         let head = y_vec_iter.next().unwrap();

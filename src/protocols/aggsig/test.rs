@@ -16,22 +16,28 @@
 
 #[cfg(test)]
 mod tests {
-    use curv::arithmetic::Converter;
-    use curv::elliptic::curves::{Ed25519, Point, Scalar};
-    use curv::BigInt;
-    use protocols::aggsig::{test_com, verify, KeyPair, Signature};
+    use std::convert::TryInto;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use curv::elliptic::curves::{Point, Scalar};
+    use curv::{arithmetic::Converter, BigInt};
+    use hex::decode;
+
+    use protocols::{
+        aggsig::{self, test_com, KeyAgg},
+        ExpendedKeyPair, Signature,
+    };
 
     #[test]
     fn test_ed25519_generate_keypair_from_seed() {
         let priv_str = "48ab347b2846f96b7bcd00bf985c52b83b92415c5c914bc1f3b09e186cf2b14f"; // Private Key
-        let priv_dec = decode(priv_str).unwrap();
-        let priv_bn = BigInt::from_bytes(&priv_dec[..]);
+        let priv_dec: [u8; 32] = decode(priv_str).unwrap().try_into().unwrap();
 
         let expected_pubkey_hex =
             "c7d17a93f129527bf7ca413f34a0f23c8462a9c3a3edd4f04550a43cdd60b27a";
         let expected_pubkey = decode(expected_pubkey_hex).unwrap();
 
-        let party1_keys = KeyPair::create_from_private_key(&priv_bn);
+        let party1_keys = ExpendedKeyPair::create_from_private_key(priv_dec);
         let mut pubkey = party1_keys.public_key.y_coord().unwrap().to_bytes();
         // Reverse is requried because bigInt returns hex in big endian while pubkeys are usually little endian.
         pubkey.reverse();
@@ -42,9 +48,9 @@ mod tests {
     #[test]
     fn test_ed25519_one_party() {
         let message: [u8; 4] = [79, 77, 69, 82];
-        let party1_keys = KeyPair::create();
-        let signature = Signature::sign_single(&message, &party1_keys);
-        assert!(verify(&signature, &message, &party1_keys.public_key).is_ok());
+        let party1_keys = ExpendedKeyPair::create();
+        let signature = aggsig::sign_single(&message, &party1_keys);
+        assert!(signature.verify(&message, &party1_keys.public_key).is_ok());
     }
 
     #[test]
@@ -58,14 +64,14 @@ mod tests {
         let message: [u8; 4] = [79, 77, 69, 82];
 
         // round 0: generate signing keys
-        let party1_key = KeyPair::create();
-        let party2_key = KeyPair::create();
+        let party1_key = ExpendedKeyPair::create();
+        let party2_key = ExpendedKeyPair::create();
 
         // round 1: send commitments to ephemeral public keys
         let (party1_ephemeral_key, party1_sign_first_message, party1_sign_second_message) =
-            Signature::create_ephemeral_key_and_commit(&party1_key, &message);
+            aggsig::create_ephemeral_key_and_commit(&party1_key, &message);
         let (party2_ephemeral_key, party2_sign_first_message, party2_sign_second_message) =
-            Signature::create_ephemeral_key_and_commit(&party2_key, &message);
+            aggsig::create_ephemeral_key_and_commit(&party2_key, &message);
 
         let party1_commitment = &party1_sign_first_message.commitment;
         let party2_commitment = &party2_sign_first_message.commitment;
@@ -86,38 +92,39 @@ mod tests {
         let mut pks = Vec::new();
         pks.push(party1_key.public_key.clone());
         pks.push(party2_key.public_key.clone());
-        let party1_key_agg = KeyPair::key_aggregation_n(&pks, &0);
-        let party2_key_agg = KeyPair::key_aggregation_n(&pks, &1);
+        let party1_key_agg = KeyAgg::key_aggregation_n(&pks, &0);
+        let party2_key_agg = KeyAgg::key_aggregation_n(&pks, &1);
         assert_eq!(party1_key_agg.apk, party2_key_agg.apk);
         // compute R' = sum(Ri):
         let mut Ri = Vec::new();
         Ri.push(party1_ephemeral_key.R.clone());
         Ri.push(party2_ephemeral_key.R.clone());
         // each party i should run this:
-        let R_tot = Signature::get_R_tot(Ri);
-        let k = Signature::k(&R_tot, &party1_key_agg.apk, &message);
-        let s1 = Signature::partial_sign(
+        let R_tot = aggsig::get_R_tot(Ri);
+        let s1 = aggsig::partial_sign(
             &party1_ephemeral_key.r,
             &party1_key,
-            &k,
             &party1_key_agg.hash,
             &R_tot,
+            &party1_key_agg.apk,
+            &message,
         );
-        let s2 = Signature::partial_sign(
+        let s2 = aggsig::partial_sign(
             &party2_ephemeral_key.r,
             &party2_key,
-            &k,
             &party2_key_agg.hash,
             &R_tot,
+            &party2_key_agg.apk,
+            &message,
         );
 
         let mut s: Vec<Signature> = Vec::new();
         s.push(s1);
         s.push(s2);
-        let signature = Signature::add_signature_parts(s);
+        let signature = aggsig::add_signature_parts(s);
 
         // verify:
-        assert!(verify(&signature, &message, &party1_key_agg.apk).is_ok())
+        assert!(signature.verify(&message, &party1_key_agg.apk).is_ok())
     }
 
     #[test]
@@ -131,17 +138,17 @@ mod tests {
         let message: [u8; 4] = [79, 77, 69, 82];
 
         // round 0: generate signing keys
-        let party1_key = KeyPair::create();
-        let party2_key = KeyPair::create();
-        let party3_key = KeyPair::create();
+        let party1_key = ExpendedKeyPair::create();
+        let party2_key = ExpendedKeyPair::create();
+        let party3_key = ExpendedKeyPair::create();
 
         // round 1: send commitments to ephemeral public keys
         let (party1_ephemeral_key, party1_sign_first_message, party1_sign_second_message) =
-            Signature::create_ephemeral_key_and_commit(&party1_key, &message);
+            aggsig::create_ephemeral_key_and_commit(&party1_key, &message);
         let (party2_ephemeral_key, party2_sign_first_message, party2_sign_second_message) =
-            Signature::create_ephemeral_key_and_commit(&party2_key, &message);
+            aggsig::create_ephemeral_key_and_commit(&party2_key, &message);
         let (party3_ephemeral_key, party3_sign_first_message, party3_sign_second_message) =
-            Signature::create_ephemeral_key_and_commit(&party3_key, &message);
+            aggsig::create_ephemeral_key_and_commit(&party3_key, &message);
 
         let party1_commitment = &party1_sign_first_message.commitment;
         let party2_commitment = &party2_sign_first_message.commitment;
@@ -169,9 +176,9 @@ mod tests {
         pks.push(party1_key.public_key.clone());
         pks.push(party2_key.public_key.clone());
         pks.push(party3_key.public_key.clone());
-        let party1_key_agg = KeyPair::key_aggregation_n(&pks, &0);
-        let party2_key_agg = KeyPair::key_aggregation_n(&pks, &1);
-        let party3_key_agg = KeyPair::key_aggregation_n(&pks, &2);
+        let party1_key_agg = KeyAgg::key_aggregation_n(&pks, &0);
+        let party2_key_agg = KeyAgg::key_aggregation_n(&pks, &1);
+        let party3_key_agg = KeyAgg::key_aggregation_n(&pks, &2);
         assert_eq!(party1_key_agg.apk, party2_key_agg.apk);
         assert_eq!(party1_key_agg.apk, party3_key_agg.apk);
         // compute R' = sum(Ri):
@@ -180,41 +187,42 @@ mod tests {
         Ri.push(party2_ephemeral_key.R.clone());
         Ri.push(party3_ephemeral_key.R.clone());
         // each party i should run this:
-        let R_tot = Signature::get_R_tot(Ri);
-        let k = Signature::k(&R_tot, &party1_key_agg.apk, &message);
-        let s1 = Signature::partial_sign(
+        let R_tot = aggsig::get_R_tot(Ri);
+        let s1 = aggsig::partial_sign(
             &party1_ephemeral_key.r,
             &party1_key,
-            &k,
             &party1_key_agg.hash,
             &R_tot,
+            &party1_key_agg.apk,
+            &message,
         );
-        let s2 = Signature::partial_sign(
+        let s2 = aggsig::partial_sign(
             &party2_ephemeral_key.r,
             &party2_key,
-            &k,
             &party2_key_agg.hash,
             &R_tot,
+            &party2_key_agg.apk,
+            &message,
         );
-        let s3 = Signature::partial_sign(
+        let s3 = aggsig::partial_sign(
             &party3_ephemeral_key.r,
             &party3_key,
-            &k,
             &party3_key_agg.hash,
             &R_tot,
+            &party3_key_agg.apk,
+            &message,
         );
 
         let mut s: Vec<Signature> = Vec::new();
         s.push(s1);
         s.push(s2);
         s.push(s3);
-        let signature = Signature::add_signature_parts(s);
+        let signature = aggsig::add_signature_parts(s);
 
         // verify:
-        assert!(verify(&signature, &message, &party1_key_agg.apk).is_ok())
+        assert!(signature.verify(&message, &party1_key_agg.apk).is_ok())
     }
 
-    use hex::decode;
     #[test]
     fn test_verify_standard_sig() {
         // msg hash:05b5d2c43079b8d696ebb21f6e1d1feb7c4aa7c5ba47eea4940f549ebb212e3d
@@ -242,6 +250,6 @@ mod tests {
         let s = Scalar::from(&s_bn);
 
         let sig = Signature { R, s };
-        assert!(verify(&sig, &message, &pk).is_ok())
+        assert!(sig.verify(&message, &pk).is_ok())
     }
 }

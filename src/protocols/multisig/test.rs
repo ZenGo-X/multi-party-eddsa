@@ -20,7 +20,7 @@ mod tests {
     use curv::arithmetic::Converter;
     use curv::cryptographic_primitives::hashing::merkle_tree::MT256;
     use curv::cryptographic_primitives::hashing::DigestExt;
-    use curv::elliptic::curves::{Ed25519, Point, Scalar};
+    use curv::elliptic::curves::Scalar;
     use curv::BigInt;
     use protocols::multisig::{partial_sign, verify, EphKey, Keys, Signature};
     use sha2::{digest::Digest, Sha256};
