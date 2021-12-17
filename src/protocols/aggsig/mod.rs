@@ -30,6 +30,7 @@ use curv::BigInt;
 pub use curv::arithmetic::traits::Converter;
 use curv::cryptographic_primitives::commitments::traits::Commitment;
 use protocols::Signature;
+use rand::{thread_rng, Rng};
 use sha2::{digest::Digest, Sha512};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -83,13 +84,21 @@ pub fn create_ephemeral_key_and_commit(
     keys: &ExpendedKeyPair,
     message: &[u8],
 ) -> (EphemeralKey, SignFirstMsg, SignSecondMsg) {
+    create_ephemeral_key_and_commit_rng(keys, message, &mut thread_rng())
+}
+
+fn create_ephemeral_key_and_commit_rng(
+    keys: &ExpendedKeyPair,
+    message: &[u8],
+    rng: &mut impl Rng,
+) -> (EphemeralKey, SignFirstMsg, SignSecondMsg) {
     // here we deviate from the spec, by introducing  non-deterministic element (random number)
     // to the nonce
     let r = Sha512::new()
         .chain(&[2])
         .chain(&*keys.expended_private_key.prefix.to_bytes())
         .chain(message)
-        .chain(&*Scalar::<Ed25519>::random().to_bytes())
+        .chain(rng.gen::<[u8; 32]>())
         .result_scalar();
     let R = Point::generator() * &r;
     let (commitment, blind_factor) =
@@ -147,13 +156,5 @@ pub fn add_signature_parts(sigs: &[Signature]) -> Signature {
         s: sum,
         R: sigs[0].R.clone(),
     }
-}
-
-pub fn test_com(r_to_test: &Point<Ed25519>, blind_factor: &BigInt, comm: &BigInt) -> bool {
-    let computed_comm = &HashCommitment::<Sha512>::create_commitment_with_user_defined_randomness(
-        &r_to_test.y_coord().unwrap(),
-        blind_factor,
-    );
-    computed_comm == comm
 }
 mod test;

@@ -17,19 +17,20 @@
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
-    use curv::elliptic::curves::{Point, Scalar};
+    use curv::cryptographic_primitives::commitments::{
+        hash_commitment::HashCommitment, traits::Commitment,
+    };
+    use curv::elliptic::curves::{Ed25519, Point, Scalar};
     use curv::{arithmetic::Converter, BigInt};
     use hex::decode;
     use itertools::{izip, MultiUnzip};
-    use rand_xoshiro::{
-        rand_core::{RngCore, SeedableRng},
-        Xoshiro256PlusPlus,
-    };
+    use rand::{Rng, RngCore};
+    use sha2::Sha512;
 
+    use protocols::tests::deterministic_fast_rand;
     use protocols::{
-        aggsig::{self, test_com, KeyAgg},
+        aggsig::{self, KeyAgg},
         tests::verify_dalek,
         ExpendedKeyPair, Signature,
     };
@@ -53,12 +54,7 @@ mod tests {
 
     #[test]
     fn test_sign_single_verify_dalek() {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        println!("test_sign_single_verify_dalek seed: {}", now);
-        let mut rng = Xoshiro256PlusPlus::seed_from_u64(now as _);
+        let mut rng = deterministic_fast_rand("test_sign_single_verify_dalek", None);
 
         let mut msg = [0u8; 64];
         let mut privkey = [0u8; 32];
@@ -76,12 +72,7 @@ mod tests {
 
     #[test]
     fn test_sign_aggsig_verify_dalek() {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        println!("test_sign_aggsig_verify_dalek seed: {}", now);
-        let mut rng = Xoshiro256PlusPlus::seed_from_u64(now as _);
+        let mut rng = deterministic_fast_rand("test_sign_aggsig_verify_dalek", None);
 
         let mut msg = [0u8; 64];
         const MAX_SIGNERS: usize = 8;
@@ -118,7 +109,7 @@ mod tests {
                     .iter()
                     .map(|keypair| {
                         let (ephemeral, sign_first, sign_second) =
-                            aggsig::create_ephemeral_key_and_commit(keypair, msg);
+                            aggsig::create_ephemeral_key_and_commit_rng(keypair, msg, &mut rng);
                         (ephemeral.R, ephemeral.r, sign_first, sign_second)
                     })
                     .multiunzip();
@@ -161,12 +152,13 @@ mod tests {
 
     #[test]
     fn test_multiparty_signing_for_two_parties() {
-        for _i in 0..256 {
-            test_multiparty_signing_for_two_parties_internal();
+        let mut rng = deterministic_fast_rand("test_multiparty_signing_for_two_parties", None);
+        for _i in 0..128 {
+            test_multiparty_signing_for_two_parties_internal(&mut rng);
         }
     }
 
-    fn test_multiparty_signing_for_two_parties_internal() {
+    fn test_multiparty_signing_for_two_parties_internal(rng: &mut impl Rng) {
         let message: [u8; 4] = [79, 77, 69, 82];
 
         // round 0: generate signing keys
@@ -175,9 +167,9 @@ mod tests {
 
         // round 1: send commitments to ephemeral public keys
         let (party1_ephemeral_key, party1_sign_first_message, party1_sign_second_message) =
-            aggsig::create_ephemeral_key_and_commit(&party1_key, &message);
+            aggsig::create_ephemeral_key_and_commit_rng(&party1_key, &message, rng);
         let (party2_ephemeral_key, party2_sign_first_message, party2_sign_second_message) =
-            aggsig::create_ephemeral_key_and_commit(&party2_key, &message);
+            aggsig::create_ephemeral_key_and_commit_rng(&party2_key, &message, rng);
 
         let party1_commitment = &party1_sign_first_message.commitment;
         let party2_commitment = &party2_sign_first_message.commitment;
@@ -229,12 +221,13 @@ mod tests {
 
     #[test]
     fn test_multiparty_signing_for_three_parties() {
-        for _i in 0..256 {
-            test_multiparty_signing_for_three_parties_internal();
+        let mut rng = deterministic_fast_rand("test_multiparty_signing_for_three_parties", None);
+        for _i in 0..128 {
+            test_multiparty_signing_for_three_parties_internal(&mut rng);
         }
     }
 
-    fn test_multiparty_signing_for_three_parties_internal() {
+    fn test_multiparty_signing_for_three_parties_internal(rng: &mut impl Rng) {
         let message: [u8; 4] = [79, 77, 69, 82];
 
         // round 0: generate signing keys
@@ -244,11 +237,11 @@ mod tests {
 
         // round 1: send commitments to ephemeral public keys
         let (party1_ephemeral_key, party1_sign_first_message, party1_sign_second_message) =
-            aggsig::create_ephemeral_key_and_commit(&party1_key, &message);
+            aggsig::create_ephemeral_key_and_commit_rng(&party1_key, &message, rng);
         let (party2_ephemeral_key, party2_sign_first_message, party2_sign_second_message) =
-            aggsig::create_ephemeral_key_and_commit(&party2_key, &message);
+            aggsig::create_ephemeral_key_and_commit_rng(&party2_key, &message, rng);
         let (party3_ephemeral_key, party3_sign_first_message, party3_sign_second_message) =
-            aggsig::create_ephemeral_key_and_commit(&party3_key, &message);
+            aggsig::create_ephemeral_key_and_commit_rng(&party3_key, &message, rng);
 
         let party1_commitment = &party1_sign_first_message.commitment;
         let party2_commitment = &party2_sign_first_message.commitment;
@@ -350,5 +343,14 @@ mod tests {
 
         let sig = Signature { R, s };
         assert!(sig.verify(&message, &pk).is_ok())
+    }
+
+    pub fn test_com(r_to_test: &Point<Ed25519>, blind_factor: &BigInt, comm: &BigInt) -> bool {
+        let computed_comm =
+            &HashCommitment::<Sha512>::create_commitment_with_user_defined_randomness(
+                &r_to_test.y_coord().unwrap(),
+                blind_factor,
+            );
+        computed_comm == comm
     }
 }

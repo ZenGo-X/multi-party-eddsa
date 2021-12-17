@@ -20,6 +20,7 @@ use curv::cryptographic_primitives::secret_sharing::feldman_vss::{SecretShares, 
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
 use protocols::{ExpendedKeyPair, Signature};
+use rand::{thread_rng, Rng};
 use sha2::{digest::Digest, Sha512};
 
 const SECURITY: usize = 256;
@@ -79,7 +80,12 @@ impl Keys {
     }
 
     pub fn phase1_broadcast(&self) -> (KeyGenBroadcastMessage1, BigInt) {
-        let blind_factor = BigInt::sample(SECURITY);
+        self.phase1_broadcast_rng(&mut thread_rng())
+    }
+
+    fn phase1_broadcast_rng(&self, rng: &mut impl Rng) -> (KeyGenBroadcastMessage1, BigInt) {
+        let blind_factor: [u8; SECURITY / 8] = rng.gen();
+        let blind_factor = BigInt::from_bytes(&blind_factor);
         let com = HashCommitment::<Sha512>::create_commitment_with_user_defined_randomness(
             &self.keypair.public_key.y_coord().unwrap(),
             &blind_factor,
@@ -167,12 +173,26 @@ impl EphemeralKey {
         message: &[u8],
         index: u16,
     ) -> EphemeralKey {
+        Self::ephermeral_key_create_from_deterministic_secret_rng(
+            keys,
+            message,
+            index,
+            &mut thread_rng(),
+        )
+    }
+
+    fn ephermeral_key_create_from_deterministic_secret_rng(
+        keys: &Keys,
+        message: &[u8],
+        index: u16,
+        rng: &mut impl Rng,
+    ) -> EphemeralKey {
         // here we deviate from the spec, by introducing  non-deterministic element (random number)
         // to the nonce
         let r_i = Sha512::new()
             .chain_scalar(&keys.keypair.expended_private_key.prefix)
             .chain(message)
-            .chain_scalar(&Scalar::<Ed25519>::random())
+            .chain(rng.gen::<[u8; 32]>())
             .result_scalar();
         let R_i = Point::generator() * &r_i;
 
@@ -184,7 +204,12 @@ impl EphemeralKey {
     }
 
     pub fn phase1_broadcast(&self) -> (KeyGenBroadcastMessage1, BigInt) {
-        let blind_factor = BigInt::sample(SECURITY);
+        self.phase1_broadcast_rng(&mut thread_rng())
+    }
+
+    pub fn phase1_broadcast_rng(&self, rng: &mut impl Rng) -> (KeyGenBroadcastMessage1, BigInt) {
+        let blind_factor: [u8; SECURITY / 8] = rng.gen();
+        let blind_factor = BigInt::from_bytes(&blind_factor);
         let com = HashCommitment::<Sha512>::create_commitment_with_user_defined_randomness(
             &self.R_i.y_coord().unwrap(),
             &blind_factor,

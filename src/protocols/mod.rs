@@ -105,10 +105,10 @@ impl Signature {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     use curv::elliptic::curves::{Ed25519, Point, Scalar};
     use ed25519_dalek::Verifier;
+    use rand::{thread_rng, Rng};
     use rand_xoshiro::rand_core::{RngCore, SeedableRng};
     use rand_xoshiro::Xoshiro256PlusPlus;
 
@@ -125,14 +125,17 @@ pub(crate) mod tests {
         dalek_pub.verify(msg, &dalek_sig).is_ok()
     }
 
+    /// This will generate a fast deterministic rng and will print the seed,
+    /// if a test fails, pass in the printed seed to reproduce.
+    pub fn deterministic_fast_rand(name: &str, seed: Option<u64>) -> impl Rng {
+        let seed = seed.unwrap_or_else(|| thread_rng().gen());
+        println!("{} seed: {}", name, seed);
+        Xoshiro256PlusPlus::seed_from_u64(seed)
+    }
+
     #[test]
     fn test_generate_pubkey_dalek() {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        println!("test_generate_pubkey_dalek seed: {}", now);
-        let mut rng = Xoshiro256PlusPlus::seed_from_u64(now as _);
+        let mut rng = deterministic_fast_rand("test_generate_pubkey_dalek", None);
 
         let mut privkey = [0u8; 32];
         for _ in 0..4096 {
@@ -151,12 +154,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_verify_dalek_signatures() {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        println!("test_verify_dalek_signatures seed: {}", now);
-        let mut rng = Xoshiro256PlusPlus::seed_from_u64(now as _);
+        let mut rng = deterministic_fast_rand("test_verify_dalek_signatures", None);
 
         let mut msg = [0u8; 64];
         let mut privkey = [0u8; 32];

@@ -15,11 +15,11 @@ mod tests {
     use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
     use curv::elliptic::curves::{Ed25519, Point};
     use itertools::{izip, Itertools};
-    use protocols::tests::verify_dalek;
+    use protocols::tests::{deterministic_fast_rand, verify_dalek};
     use protocols::thresholdsig::{
         self, EphemeralKey, EphemeralSharedKeys, Keys, LocalSig, Parameters, SharedKeys,
     };
-    use rand::{thread_rng, RngCore};
+    use rand::{Rng, RngCore};
 
     #[test]
     fn test_sign_threshold_verify_dalek_n1() {
@@ -50,16 +50,20 @@ mod tests {
     }
 
     fn test_sign_threshold_verify_dalek_for_all_t(n: u16) {
+        let mut rng = deterministic_fast_rand(
+            &format!("test_sign_threshold_verify_dalek_for_all_t_{}", n),
+            None,
+        );
+
         // max message size, will try from empty message until full.
         let mut msg = [0u8; 33];
 
-        let mut rng = thread_rng();
         let indicies: Vec<_> = (1..=n).collect();
         // test all t from 0 to n
         for t in 0..n {
             // KeyGen
             let (keypairs, combined_shares, agg_pubkey, vss_schemes) =
-                keygen_t_n_parties(t, n, &indicies);
+                keygen_t_n_parties(t, n, &indicies, &mut rng);
 
             // Sign for all possible groups (combinatorially)
             for group in (1u16..=n).combinations(usize::from(t + 1)) {
@@ -71,7 +75,7 @@ mod tests {
                     rng.fill_bytes(msg);
                     // Generate Rs
                     let (combined_nonce_shares, agg_nonce, nonce_vss_schemes) =
-                        eph_keygen_t_n_parties(t, t + 1, &group, &keypairs, msg);
+                        eph_keygen_t_n_parties(t, t + 1, &group, &keypairs, msg, &mut rng);
 
                     let partial_sigs: Vec<_> = combined_nonce_shares
                         .iter()
@@ -107,12 +111,13 @@ mod tests {
 
     #[test]
     fn test_t2_n4() {
+        let mut rng = deterministic_fast_rand("test_t2_n4", None);
         for _i in 0..128 {
-            test_t2_n4_internal();
+            test_t2_n4_internal(&mut rng);
         }
     }
 
-    fn test_t2_n4_internal() {
+    fn test_t2_n4_internal(rng: &mut impl Rng) {
         // this test assumes that in keygen we have n=4 parties and in signing we have 4 parties as well.
         let t = 2u16;
         let n = 4u16;
@@ -121,13 +126,13 @@ mod tests {
             key_gen_parties_index_vec.iter().map(|i| i + 1).collect();
 
         let (priv_keys_vec, priv_shared_keys_vec, Y, key_gen_vss_vec) =
-            keygen_t_n_parties(t, n, &key_gen_parties_points_vec);
+            keygen_t_n_parties(t, n, &key_gen_parties_points_vec, rng);
         let parties_index_vec: [u16; 4] = [0, 1, 2, 3];
         let parties_points_vec: Vec<_> = parties_index_vec.iter().map(|i| i + 1).collect();
 
         let message: [u8; 4] = [79, 77, 69, 82];
         let (eph_shared_keys_vec, R, eph_vss_vec) =
-            eph_keygen_t_n_parties(t, n, &parties_points_vec, &priv_keys_vec, &message);
+            eph_keygen_t_n_parties(t, n, &parties_points_vec, &priv_keys_vec, &message, rng);
         let local_sig_vec = (0..usize::from(n))
             .map(|i| LocalSig::compute(&message, &eph_shared_keys_vec[i], &priv_shared_keys_vec[i]))
             .collect::<Vec<LocalSig>>();
@@ -148,13 +153,14 @@ mod tests {
 
     #[test]
     fn test_t2_n5_sign_with_4() {
+        let mut rng = deterministic_fast_rand("test_t2_n5_sign_with_4", None);
         for _i in 0..128 {
-            test_t2_n5_sign_with_4_internal();
+            test_t2_n5_sign_with_4_internal(&mut rng);
         }
     }
 
     #[allow(unused_doc_comments)]
-    fn test_t2_n5_sign_with_4_internal() {
+    fn test_t2_n5_sign_with_4_internal(rng: &mut impl Rng) {
         /// this test assumes that in keygen we have n=4 parties and in signing we have 4 parties, indices 0,1,3,4.
         let t = 2;
         let n = 5;
@@ -163,7 +169,7 @@ mod tests {
         let key_gen_parties_points_vec: Vec<_> =
             key_gen_parties_index_vec.iter().map(|i| i + 1).collect();
         let (priv_keys_vec, priv_shared_keys_vec, Y, key_gen_vss_vec) =
-            keygen_t_n_parties(t, n, &key_gen_parties_points_vec);
+            keygen_t_n_parties(t, n, &key_gen_parties_points_vec, rng);
         /// signing:
         let parties_index_vec: [u16; 4] = [0, 1, 3, 4];
         let parties_points_vec: Vec<_> = parties_index_vec.iter().map(|i| i + 1).collect();
@@ -176,6 +182,7 @@ mod tests {
             &parties_points_vec,
             &priv_keys_vec,
             &message,
+            rng,
         );
 
         // each party computes and share a local sig, we collected them here to a vector as each party should do AFTER receiving all local sigs
@@ -210,6 +217,7 @@ mod tests {
         t: u16,
         n: u16,
         parties: &[u16],
+        rng: &mut impl Rng,
     ) -> (
         Vec<Keys>,
         Vec<SharedKeys>,
@@ -223,8 +231,10 @@ mod tests {
         assert_eq!(parties.len(), usize::from(n));
         let keypairs: Vec<_> = parties.iter().copied().map(Keys::phase1_create).collect();
 
-        let (first_msgs, first_msg_blinds): (Vec<_>, Vec<_>) =
-            keypairs.iter().map(Keys::phase1_broadcast).unzip();
+        let (first_msgs, first_msg_blinds): (Vec<_>, Vec<_>) = keypairs
+            .iter()
+            .map(|keypair| Keys::phase1_broadcast_rng(keypair, rng))
+            .unzip();
 
         let pubkeys_list: Vec<_> = keypairs
             .iter()
@@ -282,6 +292,7 @@ mod tests {
         parties: &[u16],
         keypairs: &[Keys],
         message: &[u8],
+        rng: &mut impl Rng,
     ) -> (
         Vec<EphemeralSharedKeys>,
         Point<Ed25519>,
@@ -296,11 +307,13 @@ mod tests {
         let (Rs, nonce_keys): (Vec<_>, Vec<_>) = parties
             .iter()
             .map(|&index| {
-                let ephemeral_key = EphemeralKey::ephermeral_key_create_from_deterministic_secret(
-                    &keypairs[usize::from(index - 1)],
-                    message,
-                    index,
-                );
+                let ephemeral_key =
+                    EphemeralKey::ephermeral_key_create_from_deterministic_secret_rng(
+                        &keypairs[usize::from(index - 1)],
+                        message,
+                        index,
+                        rng,
+                    );
                 (ephemeral_key.R_i.clone(), ephemeral_key)
             })
             .unzip();
@@ -308,7 +321,7 @@ mod tests {
         // Generate first messages
         let (first_msgs, first_msg_blinds): (Vec<_>, Vec<_>) = nonce_keys
             .iter()
-            .map(EphemeralKey::phase1_broadcast)
+            .map(|nonce| EphemeralKey::phase1_broadcast_rng(nonce, rng))
             .unzip();
 
         // Generate the aggregate nonce point
