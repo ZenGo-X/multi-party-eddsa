@@ -103,7 +103,7 @@ mod tests {
 
                 // Aggregate the public keys
                 let agg_keys: Vec<_> = (0..signers)
-                    .map(|i| KeyAgg::key_aggregation_n(&pubkeys_list, &i))
+                    .map(|i| KeyAgg::key_aggregation_n(&pubkeys_list, i))
                     .collect();
 
                 // Make sure all parties generated the same aggregated public key
@@ -136,7 +136,7 @@ mod tests {
                         ));
                     });
                 // Each party aggregates the Rs to get the aggregate R
-                let agg_R = aggsig::get_R_tot(Rs);
+                let agg_R = aggsig::get_R_tot(&Rs);
 
                 // keypairs
                 let partial_sigs: Vec<_> = izip!(keypairs.iter(), rs.iter(), agg_keys.iter())
@@ -145,7 +145,7 @@ mod tests {
                     })
                     .collect();
 
-                let signature = aggsig::add_signature_parts(partial_sigs.clone());
+                let signature = aggsig::add_signature_parts(&partial_sigs);
                 assert!(verify_dalek(&agg_keys[0].apk, &signature, msg));
             }
         }
@@ -195,18 +195,14 @@ mod tests {
         ));
 
         // compute apk:
-        let mut pks = Vec::new();
-        pks.push(party1_key.public_key.clone());
-        pks.push(party2_key.public_key.clone());
-        let party1_key_agg = KeyAgg::key_aggregation_n(&pks, &0);
-        let party2_key_agg = KeyAgg::key_aggregation_n(&pks, &1);
+        let pks = [party1_key.public_key.clone(), party2_key.public_key.clone()];
+        let party1_key_agg = KeyAgg::key_aggregation_n(&pks, 0);
+        let party2_key_agg = KeyAgg::key_aggregation_n(&pks, 1);
         assert_eq!(party1_key_agg.apk, party2_key_agg.apk);
         // compute R' = sum(Ri):
-        let mut Ri = Vec::new();
-        Ri.push(party1_ephemeral_key.R.clone());
-        Ri.push(party2_ephemeral_key.R.clone());
+        let Ri = [party1_ephemeral_key.R, party2_ephemeral_key.R];
         // each party i should run this:
-        let R_tot = aggsig::get_R_tot(Ri);
+        let R_tot = aggsig::get_R_tot(&Ri);
         let s1 = aggsig::partial_sign(
             &party1_ephemeral_key.r,
             &party1_key,
@@ -224,10 +220,8 @@ mod tests {
             &message,
         );
 
-        let mut s: Vec<Signature> = Vec::new();
-        s.push(s1);
-        s.push(s2);
-        let signature = aggsig::add_signature_parts(s);
+        let s = [s1, s2];
+        let signature = aggsig::add_signature_parts(&s);
 
         // verify:
         assert!(signature.verify(&message, &party1_key_agg.apk).is_ok())
@@ -278,22 +272,24 @@ mod tests {
         ));
 
         // compute apk:
-        let mut pks = Vec::new();
-        pks.push(party1_key.public_key.clone());
-        pks.push(party2_key.public_key.clone());
-        pks.push(party3_key.public_key.clone());
-        let party1_key_agg = KeyAgg::key_aggregation_n(&pks, &0);
-        let party2_key_agg = KeyAgg::key_aggregation_n(&pks, &1);
-        let party3_key_agg = KeyAgg::key_aggregation_n(&pks, &2);
+        let pks = [
+            party1_key.public_key.clone(),
+            party2_key.public_key.clone(),
+            party3_key.public_key.clone(),
+        ];
+        let party1_key_agg = KeyAgg::key_aggregation_n(&pks, 0);
+        let party2_key_agg = KeyAgg::key_aggregation_n(&pks, 1);
+        let party3_key_agg = KeyAgg::key_aggregation_n(&pks, 2);
         assert_eq!(party1_key_agg.apk, party2_key_agg.apk);
         assert_eq!(party1_key_agg.apk, party3_key_agg.apk);
         // compute R' = sum(Ri):
-        let mut Ri = Vec::new();
-        Ri.push(party1_ephemeral_key.R.clone());
-        Ri.push(party2_ephemeral_key.R.clone());
-        Ri.push(party3_ephemeral_key.R.clone());
+        let Ri = [
+            party1_ephemeral_key.R,
+            party2_ephemeral_key.R,
+            party3_ephemeral_key.R,
+        ];
         // each party i should run this:
-        let R_tot = aggsig::get_R_tot(Ri);
+        let R_tot = aggsig::get_R_tot(&Ri);
         let s1 = aggsig::partial_sign(
             &party1_ephemeral_key.r,
             &party1_key,
@@ -319,11 +315,8 @@ mod tests {
             &message,
         );
 
-        let mut s: Vec<Signature> = Vec::new();
-        s.push(s1);
-        s.push(s2);
-        s.push(s3);
-        let signature = aggsig::add_signature_parts(s);
+        let s = [s1, s2, s3];
+        let signature = aggsig::add_signature_parts(&s);
 
         // verify:
         assert!(signature.verify(&message, &party1_key_agg.apk).is_ok())

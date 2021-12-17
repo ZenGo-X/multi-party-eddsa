@@ -77,7 +77,7 @@ mod tests {
                         .map(|(nonce_share, &index)| {
                             LocalSig::compute(
                                 msg,
-                                &nonce_share,
+                                nonce_share,
                                 &combined_shares[usize::from(index)],
                             )
                         })
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_t2_n4() {
-        for _i in 0..256 {
+        for _i in 0..128 {
             test_t2_n4_internal();
         }
     }
@@ -115,25 +115,17 @@ mod tests {
         let t = 2u16;
         let n = 4u16;
         let key_gen_parties_index_vec: [u16; 4] = [0, 1, 2, 3];
-        let key_gen_parties_points_vec = (0..key_gen_parties_index_vec.len())
-            .map(|i| key_gen_parties_index_vec[i].clone() + 1)
-            .collect::<Vec<_>>();
+        let key_gen_parties_points_vec: Vec<_> =
+            key_gen_parties_index_vec.iter().map(|i| i + 1).collect();
 
         let (priv_keys_vec, priv_shared_keys_vec, Y, key_gen_vss_vec) =
-            keygen_t_n_parties(t.clone(), n.clone(), &key_gen_parties_points_vec);
+            keygen_t_n_parties(t, n, &key_gen_parties_points_vec);
         let parties_index_vec: [u16; 4] = [0, 1, 2, 3];
-        let parties_points_vec = (0..parties_index_vec.len())
-            .map(|i| parties_index_vec[i].clone() + 1)
-            .collect::<Vec<u16>>();
+        let parties_points_vec: Vec<_> = parties_index_vec.iter().map(|i| i + 1).collect();
 
         let message: [u8; 4] = [79, 77, 69, 82];
-        let (_eph_keys_vec, eph_shared_keys_vec, R, eph_vss_vec) = eph_keygen_t_n_parties(
-            t.clone(),
-            n.clone(),
-            &parties_points_vec,
-            &priv_keys_vec,
-            &message,
-        );
+        let (eph_shared_keys_vec, R, eph_vss_vec) =
+            eph_keygen_t_n_parties(t, n, &parties_points_vec, &priv_keys_vec, &message);
         let local_sig_vec = (0..usize::from(n))
             .map(|i| LocalSig::compute(&message, &eph_shared_keys_vec[i], &priv_shared_keys_vec[i]))
             .collect::<Vec<LocalSig>>();
@@ -154,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_t2_n5_sign_with_4() {
-        for _i in 0..256 {
+        for _i in 0..128 {
             test_t2_n5_sign_with_4_internal();
         }
     }
@@ -166,22 +158,19 @@ mod tests {
         let n = 5;
         /// keygen:
         let key_gen_parties_index_vec: [u16; 5] = [0, 1, 2, 3, 4];
-        let key_gen_parties_points_vec = (0..key_gen_parties_index_vec.len())
-            .map(|i| key_gen_parties_index_vec[i].clone() + 1)
-            .collect::<Vec<_>>();
+        let key_gen_parties_points_vec: Vec<_> =
+            key_gen_parties_index_vec.iter().map(|i| i + 1).collect();
         let (priv_keys_vec, priv_shared_keys_vec, Y, key_gen_vss_vec) =
-            keygen_t_n_parties(t.clone(), n.clone(), &key_gen_parties_points_vec);
+            keygen_t_n_parties(t, n, &key_gen_parties_points_vec);
         /// signing:
         let parties_index_vec: [u16; 4] = [0, 1, 3, 4];
-        let parties_points_vec = (0..parties_index_vec.len())
-            .map(|i| parties_index_vec[i].clone() + 1)
-            .collect::<Vec<_>>();
+        let parties_points_vec: Vec<_> = parties_index_vec.iter().map(|i| i + 1).collect();
         let num_parties = parties_index_vec.len() as u16;
         let message: [u8; 4] = [79, 77, 69, 82];
 
-        let (_eph_keys_vec, eph_shared_keys_vec, R, eph_vss_vec) = eph_keygen_t_n_parties(
-            t.clone(),
-            num_parties.clone(),
+        let (eph_shared_keys_vec, R, eph_vss_vec) = eph_keygen_t_n_parties(
+            t,
+            num_parties,
             &parties_points_vec,
             &priv_keys_vec,
             &message,
@@ -225,153 +214,148 @@ mod tests {
         Point<Ed25519>,
         Vec<VerifiableSS<Ed25519>>,
     ) {
-        let parames = Parameters {
+        let params = Parameters {
             threshold: t,
-            share_count: n.clone(),
+            share_count: n,
         };
         assert_eq!(parties.len(), usize::from(n));
-        let party_keys_vec = (0..usize::from(n))
-            .map(|i| Keys::phase1_create(parties[i]))
-            .collect::<Vec<Keys>>();
+        let keypairs: Vec<_> = parties.iter().copied().map(Keys::phase1_create).collect();
 
-        let mut bc1_vec = Vec::new();
-        let mut blind_vec = Vec::new();
-        for i in 0..usize::from(n) {
-            let (bc1, blind) = party_keys_vec[i].phase1_broadcast();
-            bc1_vec.push(bc1);
-            blind_vec.push(blind);
-        }
+        let (first_msgs, first_msg_blinds): (Vec<_>, Vec<_>) =
+            keypairs.iter().map(Keys::phase1_broadcast).unzip();
 
-        let y_vec = (0..usize::from(n))
-            .map(|i| party_keys_vec[i].keypair.public_key.clone())
-            .collect::<Vec<_>>();
-        let mut y_vec_iter = y_vec.iter();
-        let head = y_vec_iter.next().unwrap();
-        let tail = y_vec_iter;
-        let y_sum = tail.fold(head.clone(), |acc, x| acc + x);
-        let mut vss_scheme_vec = Vec::new();
-        let mut secret_shares_vec = Vec::new();
-        let mut index_vec = Vec::new();
-        for i in 0..usize::from(n) {
-            let (vss_scheme, secret_shares, index) = party_keys_vec[i]
-                .phase1_verify_com_phase2_distribute(
-                    &parames, &blind_vec, &y_vec, &bc1_vec, parties,
-                )
-                .expect("invalid key");
-            vss_scheme_vec.push(vss_scheme);
-            secret_shares_vec.push(secret_shares);
-            index_vec.push(index);
-        }
+        let pubkeys_list: Vec<_> = keypairs
+            .iter()
+            .map(|k| k.keypair.public_key.clone())
+            .collect();
 
-        let party_shares = (0..usize::from(n))
+        // Generate the aggregate key
+        let agg_pubkey = {
+            let first_key = pubkeys_list[0].clone();
+            pubkeys_list[1..].iter().fold(first_key, |acc, p| acc + p)
+        };
+        let (vss_schemes, secret_shares): (Vec<_>, Vec<_>) = keypairs
+            .iter()
+            .map(|keypair| {
+                keypair
+                    .phase1_verify_com_phase2_distribute(
+                        &params,
+                        &first_msg_blinds,
+                        &pubkeys_list,
+                        &first_msgs,
+                        parties,
+                    )
+                    .unwrap()
+            })
+            .unzip();
+
+        let parties_shares: Vec<Vec<_>> = (0..usize::from(n))
             .map(|i| {
                 (0..usize::from(n))
-                    .map(|j| {
-                        let vec_j = &secret_shares_vec[j];
-                        vec_j[i].clone()
-                    })
-                    .collect::<Vec<_>>()
+                    .map(|j| secret_shares[j][i].clone())
+                    .collect()
             })
-            .collect::<Vec<Vec<_>>>();
+            .collect();
 
-        let mut shared_keys_vec = Vec::new();
-        for i in 0..usize::from(n) {
-            let shared_keys = party_keys_vec[i]
-                .phase2_verify_vss_construct_keypair(
-                    &parames,
-                    &y_vec,
-                    &party_shares[i],
-                    &vss_scheme_vec,
-                    &index_vec[i],
-                )
-                .expect("invalid vss");
-            shared_keys_vec.push(shared_keys);
-        }
+        let combined_shares: Vec<_> = izip!(keypairs.iter(), parties_shares.iter(), parties.iter())
+            .map(|(keypair, secret_shares, &index)| {
+                keypair
+                    .phase2_verify_vss_construct_keypair(
+                        &params,
+                        &pubkeys_list,
+                        secret_shares,
+                        &vss_schemes,
+                        index,
+                    )
+                    .unwrap()
+            })
+            .collect();
 
-        (party_keys_vec, shared_keys_vec, y_sum, vss_scheme_vec)
+        (keypairs, combined_shares, agg_pubkey, vss_schemes)
     }
 
     pub fn eph_keygen_t_n_parties(
         t: u16, // system threshold
         n: u16, // number of signers
         parties: &[u16],
-        keys_vec: &Vec<Keys>,
+        keypairs: &[Keys],
         message: &[u8],
     ) -> (
-        Vec<EphemeralKey>,
         Vec<EphemeralSharedKeys>,
         Point<Ed25519>,
         Vec<VerifiableSS<Ed25519>>,
     ) {
-        let parames = Parameters {
-            threshold: t,
-            share_count: n.clone(),
-        };
         assert!(parties.len() > usize::from(t) && parties.len() <= usize::from(n));
-        let eph_party_keys_vec = (0..usize::from(n))
-            .map(|i| {
-                EphemeralKey::ephermeral_key_create_from_deterministic_secret(
-                    &keys_vec[i],
+        let params = Parameters {
+            threshold: t,
+            share_count: n,
+        };
+        // Generate Rs
+        let (Rs, nonce_keys): (Vec<_>, Vec<_>) = parties
+            .iter()
+            .map(|&index| {
+                let ephemeral_key = EphemeralKey::ephermeral_key_create_from_deterministic_secret(
+                    &keypairs[usize::from(index - 1)],
                     message,
-                    parties[i],
-                )
+                    index,
+                );
+                (ephemeral_key.R_i.clone(), ephemeral_key)
             })
-            .collect::<Vec<EphemeralKey>>();
+            .unzip();
 
-        let mut bc1_vec = Vec::new();
-        let mut blind_vec = Vec::new();
-        for i in 0..usize::from(n) {
-            let (bc1, blind) = eph_party_keys_vec[i].phase1_broadcast();
-            bc1_vec.push(bc1);
-            blind_vec.push(blind);
-        }
+        // Generate first messages
+        let (first_msgs, first_msg_blinds): (Vec<_>, Vec<_>) = nonce_keys
+            .iter()
+            .map(EphemeralKey::phase1_broadcast)
+            .unzip();
 
-        let R_vec = (0..usize::from(n))
-            .map(|i| eph_party_keys_vec[i].R_i.clone())
-            .collect::<Vec<_>>();
-        let mut R_vec_iter = R_vec.iter();
-        let head = R_vec_iter.next().unwrap();
-        let tail = R_vec_iter;
-        let R_sum = tail.fold(head.clone(), |acc, x| acc + x);
-        let mut vss_scheme_vec = Vec::new();
-        let mut secret_shares_vec = Vec::new();
-        let mut index_vec = Vec::new();
-        for i in 0..usize::from(n) {
-            let (vss_scheme, secret_shares, index) = eph_party_keys_vec[i]
-                .phase1_verify_com_phase2_distribute(
-                    &parames, &blind_vec, &R_vec, &bc1_vec, parties,
-                )
-                .expect("invalid key");
-            vss_scheme_vec.push(vss_scheme);
-            secret_shares_vec.push(secret_shares);
-            index_vec.push(index);
-        }
+        // Generate the aggregate nonce point
+        let agg_nonce = {
+            let first_key = Rs[0].clone();
+            Rs[1..].iter().fold(first_key, |acc, p| acc + p)
+        };
+        // Verify the first messages and generate the vss and secret shares
+        let (nonce_vss_schemes, nonce_secret_shares): (Vec<_>, Vec<_>) = nonce_keys
+            .iter()
+            .map(|nonce| {
+                nonce
+                    .phase1_verify_com_phase2_distribute(
+                        &params,
+                        &first_msg_blinds,
+                        &Rs,
+                        &first_msgs,
+                        parties,
+                    )
+                    .unwrap()
+            })
+            .unzip();
 
-        let party_shares = (0..usize::from(n))
+        let nonce_parties_shares: Vec<Vec<_>> = (0..usize::from(n))
             .map(|i| {
                 (0..usize::from(n))
-                    .map(|j| {
-                        let vec_j = &secret_shares_vec[j];
-                        vec_j[i].clone()
-                    })
-                    .collect::<Vec<_>>()
+                    .map(|j| nonce_secret_shares[j][i].clone())
+                    .collect()
             })
-            .collect::<Vec<Vec<_>>>();
+            .collect();
 
-        let mut shared_keys_vec = Vec::new();
-        for i in 0..usize::from(n) {
-            let shared_keys = eph_party_keys_vec[i]
+        let combined_nonce_shares: Vec<_> = izip!(
+            nonce_keys.iter(),
+            nonce_parties_shares.iter(),
+            parties.iter()
+        )
+        .map(|(nonce, nonce_secret_share, &index)| {
+            nonce
                 .phase2_verify_vss_construct_keypair(
-                    &parames,
-                    &R_vec,
-                    &party_shares[i],
-                    &vss_scheme_vec,
-                    &index_vec[i],
+                    &params,
+                    &Rs,
+                    nonce_secret_share,
+                    &nonce_vss_schemes,
+                    index,
                 )
-                .expect("invalid vss");
-            shared_keys_vec.push(shared_keys);
-        }
+                .unwrap()
+        })
+        .collect();
 
-        (eph_party_keys_vec, shared_keys_vec, R_sum, vss_scheme_vec)
+        (combined_nonce_shares, agg_nonce, nonce_vss_schemes)
     }
 }
