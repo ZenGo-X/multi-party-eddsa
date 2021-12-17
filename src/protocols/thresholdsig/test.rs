@@ -43,6 +43,8 @@ mod tests {
     }
 
     #[test]
+    // Only run n=6 on release
+    #[cfg(not(debug_assertions))]
     fn test_sign_threshold_verify_dalek_n6() {
         test_sign_threshold_verify_dalek_for_all_t(6);
     }
