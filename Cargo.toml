@@ -21,6 +21,7 @@ sha2 = "0.9"
 [dev-dependencies]
 ed25519-dalek = "1.0.1"
 rand_xoshiro = "0.6.0"
+itertools = "0.10"
 
 [features]
 default = ["curv/rust-gmp-kzen"]

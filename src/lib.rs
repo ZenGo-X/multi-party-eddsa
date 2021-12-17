@@ -26,6 +26,8 @@ extern crate sha2;
 #[cfg(test)]
 extern crate ed25519_dalek;
 #[cfg(test)]
+extern crate itertools;
+#[cfg(test)]
 extern crate rand_xoshiro;
 
 pub mod protocols;

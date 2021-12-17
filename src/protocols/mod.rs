@@ -103,14 +103,26 @@ impl Signature {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use curv::elliptic::curves::{Point, Scalar};
+    use curv::elliptic::curves::{Ed25519, Point, Scalar};
+    use ed25519_dalek::Verifier;
     use rand_xoshiro::rand_core::{RngCore, SeedableRng};
     use rand_xoshiro::Xoshiro256PlusPlus;
 
     use protocols::{ExpendedKeyPair, Signature};
+
+    pub fn verify_dalek(pk: &Point<Ed25519>, sig: &Signature, msg: &[u8]) -> bool {
+        let mut sig_bytes = [0u8; 64];
+        sig_bytes[..32].copy_from_slice(&*sig.R.to_bytes(true));
+        sig_bytes[32..].copy_from_slice(&sig.s.to_bytes());
+
+        let dalek_pub = ed25519_dalek::PublicKey::from_bytes(&*pk.to_bytes(true)).unwrap();
+        let dalek_sig = ed25519_dalek::Signature::from_bytes(&sig_bytes).unwrap();
+
+        dalek_pub.verify(msg, &dalek_sig).is_ok()
+    }
 
     #[test]
     fn test_generate_pubkey_dalek() {

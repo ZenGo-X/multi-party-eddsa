@@ -22,9 +22,15 @@ mod tests {
     use curv::elliptic::curves::{Point, Scalar};
     use curv::{arithmetic::Converter, BigInt};
     use hex::decode;
+    use itertools::{izip, MultiUnzip};
+    use rand_xoshiro::{
+        rand_core::{RngCore, SeedableRng},
+        Xoshiro256PlusPlus,
+    };
 
     use protocols::{
         aggsig::{self, test_com, KeyAgg},
+        tests::verify_dalek,
         ExpendedKeyPair, Signature,
     };
 
@@ -43,6 +49,106 @@ mod tests {
         pubkey.reverse();
 
         assert_eq!(pubkey, expected_pubkey,);
+    }
+
+    #[test]
+    fn test_sign_single_verify_dalek() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        println!("test_sign_single_verify_dalek seed: {}", now);
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(now as _);
+
+        let mut msg = [0u8; 64];
+        let mut privkey = [0u8; 32];
+        for msg_len in 0..msg.len() {
+            let msg = &mut msg[..msg_len];
+            for _ in 0..20 {
+                rng.fill_bytes(&mut privkey);
+                rng.fill_bytes(msg);
+                let keypair = ExpendedKeyPair::create_from_private_key(privkey);
+                let signature = aggsig::sign_single(msg, &keypair);
+                assert!(verify_dalek(&keypair.public_key, &signature, msg));
+            }
+        }
+    }
+
+    #[test]
+    fn test_sign_aggsig_verify_dalek() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        println!("test_sign_aggsig_verify_dalek seed: {}", now);
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(now as _);
+
+        let mut msg = [0u8; 64];
+        const MAX_SIGNERS: usize = 8;
+        let mut privkeys = [[0u8; 32]; MAX_SIGNERS];
+        for msg_len in 0..msg.len() {
+            let msg = &mut msg[..msg_len];
+            for signers in 1..MAX_SIGNERS {
+                let privkeys = &mut privkeys[..signers];
+
+                privkeys.iter_mut().for_each(|p| rng.fill_bytes(p));
+                rng.fill_bytes(msg);
+                // Generate keypairs and pubkeys_list from the private keys.
+                let keypairs: Vec<_> = privkeys
+                    .iter()
+                    .copied()
+                    .map(ExpendedKeyPair::create_from_private_key)
+                    .collect();
+                let pubkeys_list: Vec<_> = keypairs.iter().map(|k| k.public_key.clone()).collect();
+
+                // Aggregate the public keys
+                let agg_keys: Vec<_> = (0..signers)
+                    .map(|i| KeyAgg::key_aggregation_n(&pubkeys_list, &i))
+                    .collect();
+
+                // Make sure all parties generated the same aggregated public key
+                assert!(agg_keys[1..]
+                    .iter()
+                    .all(|agg_key| agg_key.apk == agg_keys[0].apk));
+
+                // Start signing
+
+                // Generate the first and second messages
+                let (Rs, rs, first_msgs, second_msgs): (Vec<_>, Vec<_>, Vec<_>, Vec<_>) = keypairs
+                    .iter()
+                    .map(|keypair| {
+                        let (ephemeral, sign_first, sign_second) =
+                            aggsig::create_ephemeral_key_and_commit(keypair, msg);
+                        (ephemeral.R, ephemeral.r, sign_first, sign_second)
+                    })
+                    .multiunzip();
+                // Send first first msg, wait to recieve everyone else's and then send second msg.
+
+                // Verify that the second message matches the first message.
+                first_msgs
+                    .iter()
+                    .zip(second_msgs.iter())
+                    .for_each(|(first_msg, second_msg)| {
+                        assert!(test_com(
+                            &second_msg.R,
+                            &second_msg.blind_factor,
+                            &first_msg.commitment
+                        ));
+                    });
+                // Each party aggregates the Rs to get the aggregate R
+                let agg_R = aggsig::get_R_tot(Rs);
+
+                // keypairs
+                let partial_sigs: Vec<_> = izip!(keypairs.iter(), rs.iter(), agg_keys.iter())
+                    .map(|(keypair, r, aggkey)| {
+                        aggsig::partial_sign(r, keypair, &aggkey.hash, &agg_R, &aggkey.apk, msg)
+                    })
+                    .collect();
+
+                let signature = aggsig::add_signature_parts(partial_sigs.clone());
+                assert!(verify_dalek(&agg_keys[0].apk, &signature, msg));
+            }
+        }
     }
 
     #[test]

@@ -12,12 +12,96 @@
 */
 #[cfg(test)]
 mod tests {
-
     use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
     use curv::elliptic::curves::{Ed25519, Point};
+    use itertools::{izip, Itertools};
+    use protocols::tests::verify_dalek;
     use protocols::thresholdsig::{
         self, EphemeralKey, EphemeralSharedKeys, Keys, LocalSig, Parameters, SharedKeys,
     };
+    use rand::{thread_rng, RngCore};
+
+    #[test]
+    fn test_sign_threshold_verify_dalek_n1() {
+        test_sign_threshold_verify_dalek_for_all_t(1);
+    }
+    #[test]
+    fn test_sign_threshold_verify_dalek_n2() {
+        test_sign_threshold_verify_dalek_for_all_t(2);
+    }
+    #[test]
+    fn test_sign_threshold_verify_dalek_n3() {
+        test_sign_threshold_verify_dalek_for_all_t(3);
+    }
+    #[test]
+    fn test_sign_threshold_verify_dalek_n4() {
+        test_sign_threshold_verify_dalek_for_all_t(4);
+    }
+    #[test]
+    fn test_sign_threshold_verify_dalek_n5() {
+        test_sign_threshold_verify_dalek_for_all_t(5);
+    }
+
+    #[test]
+    fn test_sign_threshold_verify_dalek_n6() {
+        test_sign_threshold_verify_dalek_for_all_t(6);
+    }
+
+    fn test_sign_threshold_verify_dalek_for_all_t(n: u16) {
+        // max message size, will try from empty message until full.
+        let mut msg = [0u8; 33];
+
+        let mut rng = thread_rng();
+        let indicies: Vec<_> = (1..=n).collect();
+        // test all t from 0 to n
+        for t in 0..n {
+            // KeyGen
+            let (keypairs, combined_shares, agg_pubkey, vss_schemes) =
+                keygen_t_n_parties(t, n, &indicies);
+
+            // Sign for all possible groups (combinatorially)
+            for group in (1u16..=n).combinations(usize::from(t + 1)) {
+                let group_indexs: Vec<_> = group.iter().map(|a| a - 1).collect();
+
+                // Try to sign for all possible message lengths from 0 to msg.len()
+                for msg_len in 0..msg.len() {
+                    let msg = &mut msg[..msg_len];
+                    rng.fill_bytes(msg);
+                    // Generate Rs
+                    let (combined_nonce_shares, agg_nonce, nonce_vss_schemes) =
+                        eph_keygen_t_n_parties(t, t + 1, &group, &keypairs, msg);
+
+                    let partial_sigs: Vec<_> = combined_nonce_shares
+                        .iter()
+                        .zip_eq(group_indexs.iter())
+                        .map(|(nonce_share, &index)| {
+                            LocalSig::compute(
+                                msg,
+                                &nonce_share,
+                                &combined_shares[usize::from(index)],
+                            )
+                        })
+                        .collect();
+
+                    // Verify all partial signatures
+                    let vss_sum_sigs = LocalSig::verify_local_sigs(
+                        &partial_sigs,
+                        &group_indexs,
+                        &vss_schemes,
+                        &nonce_vss_schemes,
+                    )
+                    .unwrap();
+                    let sig = thresholdsig::generate(
+                        &vss_sum_sigs,
+                        &partial_sigs,
+                        &group_indexs,
+                        agg_nonce,
+                    );
+                    assert!(verify_dalek(&agg_pubkey, &sig, msg));
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_t2_n4() {
