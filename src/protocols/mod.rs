@@ -98,6 +98,7 @@ impl Signature {
             .finalize();
         // reverse because BigInt uses BigEndian.
         k.reverse();
+        // This will reduce it mod the group order.
         Scalar::from_bigint(&BigInt::from_bytes(&k))
     }
 }

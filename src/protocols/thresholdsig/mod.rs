@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-#[allow(unused_doc_comments)]
 /*
     Multisig eddsa
     Copyright 2018 by Kzen Networks
@@ -92,75 +91,70 @@ impl Keys {
     pub fn phase1_verify_com_phase2_distribute(
         &self,
         params: &Parameters,
-        blind_vec: &Vec<BigInt>,
-        y_vec: &Vec<Point<Ed25519>>,
-        bc1_vec: &Vec<KeyGenBroadcastMessage1>,
+        blind_vec: &[BigInt],
+        y_vec: &[Point<Ed25519>],
+        bc1_vec: &[KeyGenBroadcastMessage1],
         parties: &[u16],
-    ) -> Result<(VerifiableSS<Ed25519>, SecretShares<Ed25519>, u16), Error> {
+    ) -> Result<(VerifiableSS<Ed25519>, SecretShares<Ed25519>), Error> {
         // test length:
         assert_eq!(blind_vec.len(), usize::from(params.share_count));
         assert_eq!(bc1_vec.len(), usize::from(params.share_count));
         assert_eq!(y_vec.len(), usize::from(params.share_count));
         // test decommitments
-        let correct_key_correct_decom_all = (0..bc1_vec.len())
-            .map(|i| {
+        let correct_key_correct_decom_all = y_vec
+            .iter()
+            .zip(blind_vec.iter())
+            .zip(bc1_vec.iter())
+            .all(|((y, blind), comm)| {
                 HashCommitment::<Sha512>::create_commitment_with_user_defined_randomness(
-                    &y_vec[i].y_coord().unwrap(),
-                    &blind_vec[i],
-                ) == bc1_vec[i].com
-            })
-            .all(|x| x == true);
-
-        let (vss_scheme, secret_shares) = VerifiableSS::share_at_indices(
+                    &y.y_coord().unwrap(),
+                    blind,
+                ) == comm.com
+            });
+        if !correct_key_correct_decom_all {
+            return Err(InvalidKey);
+        }
+        Ok(VerifiableSS::share_at_indices(
             params.threshold,
             params.share_count,
             &self.keypair.expended_private_key.private_key,
-            &parties,
-        );
-
-        match correct_key_correct_decom_all {
-            true => Ok((vss_scheme, secret_shares, self.party_index.clone())),
-            false => Err(InvalidKey),
-        }
+            parties,
+        ))
     }
 
     pub fn phase2_verify_vss_construct_keypair(
         &self,
         params: &Parameters,
-        y_vec: &Vec<Point<Ed25519>>,
-        secret_shares_vec: &Vec<Scalar<Ed25519>>,
-        vss_scheme_vec: &Vec<VerifiableSS<Ed25519>>,
-        index: &u16,
+        y_vec: &[Point<Ed25519>],
+        secret_shares_vec: &[Scalar<Ed25519>],
+        vss_scheme_vec: &[VerifiableSS<Ed25519>],
+        index: u16,
     ) -> Result<SharedKeys, Error> {
         assert_eq!(y_vec.len(), usize::from(params.share_count));
         assert_eq!(secret_shares_vec.len(), usize::from(params.share_count));
         assert_eq!(vss_scheme_vec.len(), usize::from(params.share_count));
 
-        let correct_ss_verify = (0..y_vec.len())
-            .map(|i| {
-                vss_scheme_vec[i]
-                    .validate_share(&secret_shares_vec[i], *index)
-                    .is_ok()
-                    && vss_scheme_vec[i].commitments[0] == y_vec[i]
-            })
-            .all(|x| x == true);
-
-        match correct_ss_verify {
-            true => {
-                let mut y_vec_iter = y_vec.iter();
-                let y0 = y_vec_iter.next().unwrap();
-                let y = y_vec_iter.fold(y0.clone(), |acc, x| acc + x);
-                let x_i = secret_shares_vec
-                    .iter()
-                    .fold(Scalar::zero(), |acc, x| acc + x);
-                Ok(SharedKeys {
-                    y,
-                    x_i,
-                    prefix: self.keypair.expended_private_key.prefix.clone(),
-                })
-            }
-            false => Err(InvalidSS),
+        let correct_ss_verify = vss_scheme_vec
+            .iter()
+            .zip(secret_shares_vec.iter())
+            .zip(y_vec.iter())
+            .all(|((vss_scheme, secret_share), y)| {
+                vss_scheme.validate_share(secret_share, index).is_ok()
+                    && &vss_scheme.commitments[0] == y
+            });
+        if !correct_ss_verify {
+            return Err(InvalidSS);
         }
+        let first_y = y_vec[0].clone();
+        let y = y_vec[1..].iter().fold(first_y, |acc, y| acc + y);
+        let x_i = secret_shares_vec
+            .iter()
+            .fold(Scalar::zero(), |acc, x| acc + x);
+        Ok(SharedKeys {
+            y,
+            x_i,
+            prefix: self.keypair.expended_private_key.prefix.clone(),
+        })
     }
 }
 
@@ -175,12 +169,11 @@ impl EphemeralKey {
     ) -> EphemeralKey {
         // here we deviate from the spec, by introducing  non-deterministic element (random number)
         // to the nonce
-        let r_local = Sha512::new()
+        let r_i = Sha512::new()
             .chain_scalar(&keys.keypair.expended_private_key.prefix)
             .chain(message)
             .chain_scalar(&Scalar::<Ed25519>::random())
-            .result_bigint();
-        let r_i = Scalar::from_bigint(&r_local);
+            .result_scalar();
         let R_i = Point::generator() * &r_i;
 
         EphemeralKey {
@@ -203,11 +196,11 @@ impl EphemeralKey {
     pub fn phase1_verify_com_phase2_distribute(
         &self,
         params: &Parameters,
-        blind_vec: &Vec<BigInt>,
-        R_vec: &Vec<Point<Ed25519>>,
-        bc1_vec: &Vec<KeyGenBroadcastMessage1>,
+        blind_vec: &[BigInt],
+        R_vec: &[Point<Ed25519>],
+        bc1_vec: &[KeyGenBroadcastMessage1],
         parties: &[u16],
-    ) -> Result<(VerifiableSS<Ed25519>, SecretShares<Ed25519>, u16), Error> {
+    ) -> Result<(VerifiableSS<Ed25519>, SecretShares<Ed25519>), Error> {
         // test length:
         assert!(
             blind_vec.len() > usize::from(params.threshold)
@@ -222,35 +215,36 @@ impl EphemeralKey {
                 && R_vec.len() <= usize::from(params.share_count)
         );
         // test decommitments
-        let correct_key_correct_decom_all = (0..bc1_vec.len())
-            .map(|i| {
+        let correct_key_correct_decom_all = R_vec
+            .iter()
+            .zip(blind_vec.iter())
+            .zip(bc1_vec.iter())
+            .all(|((R, blind), comm)| {
                 HashCommitment::<Sha512>::create_commitment_with_user_defined_randomness(
-                    &R_vec[i].y_coord().unwrap(),
-                    &blind_vec[i],
-                ) == bc1_vec[i].com
-            })
-            .all(|x| x == true);
+                    &R.y_coord().unwrap(),
+                    blind,
+                ) == comm.com
+            });
 
-        let (vss_scheme, secret_shares) = VerifiableSS::share_at_indices(
+        if !correct_key_correct_decom_all {
+            return Err(InvalidKey);
+        }
+
+        Ok(VerifiableSS::share_at_indices(
             params.threshold,
             params.share_count,
             &self.r_i,
-            &parties,
-        );
-
-        match correct_key_correct_decom_all {
-            true => Ok((vss_scheme, secret_shares, self.party_index.clone())),
-            false => Err(InvalidKey),
-        }
+            parties,
+        ))
     }
 
     pub fn phase2_verify_vss_construct_keypair(
         &self,
         params: &Parameters,
-        R_vec: &Vec<Point<Ed25519>>,
-        secret_shares_vec: &Vec<Scalar<Ed25519>>,
-        vss_scheme_vec: &Vec<VerifiableSS<Ed25519>>,
-        index: &u16,
+        R_vec: &[Point<Ed25519>],
+        secret_shares_vec: &[Scalar<Ed25519>],
+        vss_scheme_vec: &[VerifiableSS<Ed25519>],
+        index: u16,
     ) -> Result<EphemeralSharedKeys, Error> {
         assert!(
             R_vec.len() > usize::from(params.threshold)
@@ -265,27 +259,24 @@ impl EphemeralKey {
                 && vss_scheme_vec.len() <= usize::from(params.share_count)
         );
 
-        let correct_ss_verify = (0..R_vec.len())
-            .map(|i| {
-                vss_scheme_vec[i]
-                    .validate_share(&secret_shares_vec[i], *index)
-                    .is_ok()
-                    && vss_scheme_vec[i].commitments[0] == R_vec[i]
-            })
-            .all(|x| x == true);
-
-        match correct_ss_verify {
-            true => {
-                let mut R_vec_iter = R_vec.iter();
-                let R0 = R_vec_iter.next().unwrap();
-                let R = R_vec_iter.fold(R0.clone(), |acc, x| acc + x);
-                let r_i = secret_shares_vec
-                    .iter()
-                    .fold(Scalar::zero(), |acc, x| acc + x);
-                Ok(EphemeralSharedKeys { R, r_i })
-            }
-            false => Err(InvalidSS),
+        let correct_ss_verify = vss_scheme_vec
+            .iter()
+            .zip(secret_shares_vec.iter())
+            .zip(R_vec.iter())
+            .all(|((vss_scheme, secret_share), R)| {
+                vss_scheme.validate_share(secret_share, index).is_ok()
+                    && &vss_scheme.commitments[0] == R
+            });
+        if !correct_ss_verify {
+            return Err(InvalidSS);
         }
+
+        let R_first = R_vec[0].clone();
+        let R = R_vec[1..].iter().fold(R_first, |acc, x| acc + x);
+        let r_i = secret_shares_vec
+            .iter()
+            .fold(Scalar::zero(), |acc, x| acc + x);
+        Ok(EphemeralSharedKeys { R, r_i })
     }
 }
 
@@ -307,10 +298,10 @@ impl LocalSig {
     // section 4.2 step 3
     #[allow(unused_doc_comments)]
     pub fn verify_local_sigs(
-        gamma_vec: &Vec<LocalSig>,
+        gamma_vec: &[LocalSig],
         parties_index_vec: &[u16],
-        vss_private_keys: &Vec<VerifiableSS<Ed25519>>,
-        vss_ephemeral_keys: &Vec<VerifiableSS<Ed25519>>,
+        vss_private_keys: &[VerifiableSS<Ed25519>],
+        vss_ephemeral_keys: &[VerifiableSS<Ed25519>],
     ) -> Result<VerifiableSS<Ed25519>, Error> {
         //parties_index_vec is a vector with indices of the parties that are participating and provided gamma_i for this step
         // test that enough parties are in this round
@@ -321,37 +312,39 @@ impl LocalSig {
         // [com0_eph_0,... ,com0_eph_n', e*com0_kg_0, ..., e*com0_kg_n ;
         // ...  ;
         // comt_eph_0,... ,comt_eph_n', e*comt_kg_0, ..., e*comt_kg_n ]
-        let comm_vec = (0..usize::from(vss_private_keys[0].parameters.threshold) + 1)
+        let comm_vec: Vec<_> = (0..usize::from(vss_private_keys[0].parameters.threshold) + 1)
             .map(|i| {
-                let mut key_gen_comm_i_vec = (0..vss_private_keys.len())
-                    .map(|j| vss_private_keys[j].commitments[i].clone() * &gamma_vec[i].k)
-                    .collect::<Vec<Point<Ed25519>>>();
-                let mut eph_comm_i_vec = (0..vss_ephemeral_keys.len())
+                let mut key_gen_comm_i_vec: Vec<_> = (0..vss_private_keys.len())
+                    .map(|j| &vss_private_keys[j].commitments[i] * &gamma_vec[i].k)
+                    .collect();
+                let mut eph_comm_i_vec: Vec<_> = (0..vss_ephemeral_keys.len())
                     .map(|j| vss_ephemeral_keys[j].commitments[i].clone())
-                    .collect::<Vec<Point<Ed25519>>>();
+                    .collect();
                 key_gen_comm_i_vec.append(&mut eph_comm_i_vec);
-                let mut comm_i_vec_iter = key_gen_comm_i_vec.iter();
-                let comm_i_0 = comm_i_vec_iter.next().unwrap();
-                comm_i_vec_iter.fold(comm_i_0.clone(), |acc, x| acc + x)
+                let first = key_gen_comm_i_vec[0].clone();
+                key_gen_comm_i_vec[1..].iter().fold(first, |acc, x| acc + x)
             })
-            .collect::<Vec<Point<Ed25519>>>();
+            .collect();
 
         let vss_sum = VerifiableSS {
             parameters: vss_ephemeral_keys[0].parameters.clone(),
             commitments: comm_vec,
         };
 
-        let g = Point::<Ed25519>::generator();
-        let correct_ss_verify = (0..parties_index_vec.len())
-            .map(|i| {
-                let gamma_i_g = &gamma_vec[i].gamma_i * g;
-                vss_sum
-                    .validate_share_public(&gamma_i_g, parties_index_vec[i] + 1)
-                    .is_ok()
-            })
-            .collect::<Vec<bool>>();
+        let g = Point::generator();
 
-        match correct_ss_verify.iter().all(|x| x.clone() == true) {
+        let correct_ss_verify =
+            gamma_vec
+                .iter()
+                .zip(parties_index_vec.iter())
+                .all(|(gamma, &party_index)| {
+                    let gamma_i_g = &gamma.gamma_i * g;
+                    vss_sum
+                        .validate_share_public(&gamma_i_g, party_index + 1)
+                        .is_ok()
+                });
+
+        match correct_ss_verify {
             true => Ok(vss_sum),
             false => Err(InvalidSS),
         }
@@ -360,18 +353,16 @@ impl LocalSig {
 
 pub fn generate(
     vss_sum_local_sigs: &VerifiableSS<Ed25519>,
-    local_sig_vec: &Vec<LocalSig>,
+    local_sig_vec: &[LocalSig],
     parties_index_vec: &[u16],
     R: Point<Ed25519>,
 ) -> Signature {
-    let gamma_vec = (0..parties_index_vec.len())
-        .map(|i| local_sig_vec[i].gamma_i.clone())
-        .collect::<Vec<Scalar<Ed25519>>>();
     let reconstruct_limit = usize::from(vss_sum_local_sigs.parameters.threshold) + 1;
-    let s = vss_sum_local_sigs.reconstruct(
-        &parties_index_vec[0..reconstruct_limit],
-        &gamma_vec[0..reconstruct_limit],
-    );
+    let gamma_vec: Vec<_> = local_sig_vec[..reconstruct_limit]
+        .iter()
+        .map(|sig| sig.gamma_i.clone())
+        .collect();
+    let s = vss_sum_local_sigs.reconstruct(&parties_index_vec[0..reconstruct_limit], &gamma_vec);
     Signature { s, R }
 }
 

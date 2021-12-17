@@ -39,42 +39,25 @@ pub struct KeyAgg {
 }
 
 impl KeyAgg {
-    pub fn key_aggregation_n(pks: &Vec<Point<Ed25519>>, party_index: &usize) -> KeyAgg {
-        let bn_1 = BigInt::from(1);
-        let x_coor_vec: Vec<BigInt> = (0..pks.len())
-            .into_iter()
-            .map(|i| pks[i].y_coord().expect("Should never fail"))
-            .collect();
-        let hash_vec: Vec<BigInt> = x_coor_vec
-            .iter()
-            .map(|pk| {
-                let mut hasher = Sha512::new();
-                hasher.input_bigint(&bn_1);
-                hasher.input_bigint(pk);
-                for i in 0..pks.len() {
-                    hasher.input_bigint(&x_coor_vec[i]);
-                }
-                hasher.result_bigint()
-            })
-            .collect();
-
-        let apk_vec: Vec<_> = pks
-            .iter()
-            .zip(&hash_vec)
-            .map(|(pk, hash)| {
-                let hash_t = Scalar::from_bigint(hash);
-                let a_i = pk * hash_t;
-                a_i
-            })
-            .collect();
-        //TODO: remove clones
-        let mut apk_vec_2_n = apk_vec.clone();
-        let pk1 = apk_vec_2_n.remove(0);
-        let sum = apk_vec_2_n.iter().fold(pk1, |acc, pk| acc + pk);
+    pub fn key_aggregation_n(pks: &[Point<Ed25519>], party_index: usize) -> KeyAgg {
+        let mut my_hash = Scalar::zero();
+        let mut sum = Point::zero();
+        pks.iter().enumerate().for_each(|(index, pk)| {
+            let mut hasher = Sha512::new().chain(&[1]).chain(&*pk.to_bytes(true));
+            for pk in pks {
+                hasher.update(&*pk.to_bytes(true));
+            }
+            let hash = hasher.result_scalar();
+            let a_i = pk * &hash;
+            if index == party_index {
+                my_hash = hash;
+            }
+            sum = &sum + a_i
+        });
 
         KeyAgg {
             apk: sum,
-            hash: Scalar::from_bigint(&hash_vec[*party_index]),
+            hash: my_hash,
         }
     }
 }
@@ -103,12 +86,11 @@ pub fn create_ephemeral_key_and_commit(
     // here we deviate from the spec, by introducing  non-deterministic element (random number)
     // to the nonce
     let r = Sha512::new()
-        .chain_bigint(&BigInt::from(2))
-        .chain_bigint(&keys.expended_private_key.prefix.to_bigint())
-        .chain_bigint(&BigInt::from_bytes(message))
-        .chain_bigint(&Scalar::<Ed25519>::random().to_bigint())
-        .result_bigint();
-    let r = reverse_bn_to_fe(&r);
+        .chain(&[2])
+        .chain(&*keys.expended_private_key.prefix.to_bytes())
+        .chain(message)
+        .chain(&*Scalar::<Ed25519>::random().to_bytes())
+        .result_scalar();
     let R = Point::generator() * &r;
     let (commitment, blind_factor) =
         HashCommitment::<Sha512>::create_commitment(&R.y_coord().unwrap());
@@ -118,12 +100,9 @@ pub fn create_ephemeral_key_and_commit(
         SignSecondMsg { R, blind_factor },
     )
 }
-pub fn get_R_tot(mut R: Vec<Point<Ed25519>>) -> Point<Ed25519> {
-    let R1 = R.remove(0);
-    let sum = R
-        .iter()
-        .fold(R1, |acc: Point<Ed25519>, Ri: &Point<Ed25519>| acc + Ri);
-    sum
+pub fn get_R_tot(Rs: &[Point<Ed25519>]) -> Point<Ed25519> {
+    let first = Rs[0].clone();
+    Rs[1..].iter().fold(first, |acc, Ri| acc + Ri)
 }
 
 pub fn partial_sign(
@@ -150,31 +129,24 @@ pub fn sign_single(message: &[u8], keys: &ExpendedKeyPair) -> Signature {
         .chain(message)
         .result_scalar();
     let R = &r * Point::generator();
-    let mut k = Sha512::new()
-        .chain(&*R.to_bytes(true))
-        .chain(&*keys.public_key.to_bytes(true))
-        .chain(message)
-        .finalize();
-    // reverse because BigInt uses BigEndian.
-    k.reverse();
-    let k = Scalar::from_bigint(&BigInt::from_bytes(&k));
+    let k = Signature::k(&R, &keys.public_key, message);
 
     let k_mul_sk = k * &keys.expended_private_key.private_key;
     let s = r + k_mul_sk;
     Signature { R, s }
 }
 
-pub fn add_signature_parts(mut sigs: Vec<Signature>) -> Signature {
+pub fn add_signature_parts(sigs: &[Signature]) -> Signature {
     //test equality of group elements:
-    let candidate_R = &sigs[0].R.clone();
-    assert!(sigs.iter().all(|x| &x.R == candidate_R));
+    assert!(sigs[1..].iter().all(|x| x.R == sigs[0].R));
     //sum s part of the signature:
 
-    let s1 = sigs.pop().unwrap();
-    let sum = sigs
-        .iter()
-        .fold(s1.s, |acc: Scalar<Ed25519>, si: &Signature| acc + &si.s);
-    Signature { s: sum, R: s1.R }
+    let s1 = sigs[0].s.clone();
+    let sum = sigs[1..].iter().fold(s1, |acc, si| acc + &si.s);
+    Signature {
+        s: sum,
+        R: sigs[0].R.clone(),
+    }
 }
 
 pub fn test_com(r_to_test: &Point<Ed25519>, blind_factor: &BigInt, comm: &BigInt) -> bool {
@@ -185,10 +157,3 @@ pub fn test_com(r_to_test: &Point<Ed25519>, blind_factor: &BigInt, comm: &BigInt
     computed_comm == comm
 }
 mod test;
-
-pub fn reverse_bn_to_fe(scalar: &BigInt) -> Scalar<Ed25519> {
-    let mut vec = BigInt::to_bytes(&scalar);
-    vec.reverse();
-    let scalar_out = BigInt::from_bytes(&vec[..]);
-    Scalar::from_bigint(&scalar_out)
-}

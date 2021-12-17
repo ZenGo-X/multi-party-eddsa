@@ -171,10 +171,10 @@ impl EphKey {
             .iter()
             .fold(first_eph_pub_key, |acc, x| acc + x);
         //TODO: maybe there is a better way?
-        let m_fe = Scalar::from_bigint(&message);
+        let m_fe = Scalar::from_bigint(message);
         let base_point = Point::generator();
         let m_ge = base_point * m_fe;
-        let e = multisig::hash_4(&[sum_pub_eph.clone(), m_ge.clone(), sum_pub.clone()]);
+        let e = multisig::hash_4(&[sum_pub_eph.clone(), m_ge, sum_pub.clone()]);
         (sum_pub, sum_pub_eph, e)
     }
 
