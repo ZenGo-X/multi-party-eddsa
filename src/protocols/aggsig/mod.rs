@@ -29,7 +29,7 @@ use curv::BigInt;
 
 pub use curv::arithmetic::traits::Converter;
 use curv::cryptographic_primitives::commitments::traits::Commitment;
-use protocols::Signature;
+use protocols::{ProofError, Signature};
 use rand::{thread_rng, Rng};
 use sha2::{digest::Digest, Sha512};
 
@@ -157,4 +157,28 @@ pub fn add_signature_parts(sigs: &[Signature]) -> Signature {
         R: sigs[0].R.clone(),
     }
 }
+
+pub fn verify_partial_sig(
+    sig: &Signature,
+    message: &[u8],
+    a: &Scalar<Ed25519>,
+    partial_R: &Point<Ed25519>,
+    partial_public_key: &Point<Ed25519>,
+    agg_pubkey: &Point<Ed25519>,
+) -> Result<(), ProofError> {
+    let k = Signature::k(&sig.R, agg_pubkey, message);
+    let A = partial_public_key;
+
+    let kA = A * k * a;
+
+    let R_plus_kA = kA + partial_R;
+    let sG = &sig.s * Point::generator();
+
+    if R_plus_kA == sG {
+        Ok(())
+    } else {
+        Err(ProofError)
+    }
+}
+
 mod test;
