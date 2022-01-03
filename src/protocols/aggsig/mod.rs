@@ -29,7 +29,7 @@ use curv::BigInt;
 
 pub use curv::arithmetic::traits::Converter;
 use curv::cryptographic_primitives::commitments::traits::Commitment;
-use protocols::{ProofError, Signature};
+use crate::protocols::{ProofError, Signature};
 use rand::{thread_rng, Rng};
 use sha2::{digest::Digest, Sha512};
 

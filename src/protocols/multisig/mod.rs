@@ -23,7 +23,7 @@ use super::ExpendedKeyPair;
 use curv::cryptographic_primitives::hashing::DigestExt;
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
-use protocols::multisig;
+use crate::protocols::multisig;
 
 use sha2::{digest::Digest, Sha512};
 

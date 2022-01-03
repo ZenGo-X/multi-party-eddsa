@@ -10,7 +10,8 @@
     version 3 of the License, or (at your option) any later version.
     @license GPL-3.0+ <https://github.com/KZen-networks/multi-party-eddsa/blob/master/LICENSE>
 */
-use Error::{self, InvalidKey, InvalidSS};
+use std::num::NonZeroU16;
+use crate::Error::{self, InvalidKey, InvalidSS};
 
 use curv::arithmetic::traits::*;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
@@ -19,20 +20,28 @@ use curv::cryptographic_primitives::hashing::DigestExt;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::{SecretShares, VerifiableSS};
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
-use protocols::{ExpendedKeyPair, Signature};
+use crate::protocols::{ExpendedKeyPair, Signature};
 use rand::{thread_rng, Rng};
 use sha2::{digest::Digest, Sha512};
 
 const SECURITY: usize = 256;
 
 // u_i is private key and {u__i, prefix} are extended private key.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Keys {
     pub keypair: ExpendedKeyPair,
     pub party_index: u16,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyGenBroadcastMessage1 {
     com: BigInt,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KeyGenDecommitMessage1 {
+    pub blind_factor: BigInt,
+    pub y_i: Point<Ed25519>,
 }
 
 #[derive(Debug)]
@@ -59,6 +68,7 @@ pub struct EphemeralSharedKeys {
     pub r_i: Scalar<Ed25519>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LocalSig {
     gamma_i: Scalar<Ed25519>,
     k: Scalar<Ed25519>,
@@ -79,11 +89,11 @@ impl Keys {
         }
     }
 
-    pub fn phase1_broadcast(&self) -> (KeyGenBroadcastMessage1, BigInt) {
+    pub fn phase1_broadcast(&self) -> (KeyGenBroadcastMessage1, KeyGenDecommitMessage1) {
         self.phase1_broadcast_rng(&mut thread_rng())
     }
 
-    fn phase1_broadcast_rng(&self, rng: &mut impl Rng) -> (KeyGenBroadcastMessage1, BigInt) {
+    fn phase1_broadcast_rng(&self, rng: &mut impl Rng) -> (KeyGenBroadcastMessage1, KeyGenDecommitMessage1) {
         let blind_factor: [u8; SECURITY / 8] = rng.gen();
         let blind_factor = BigInt::from_bytes(&blind_factor);
         let com = HashCommitment::<Sha512>::create_commitment_with_user_defined_randomness(
@@ -91,7 +101,10 @@ impl Keys {
             &blind_factor,
         );
         let bcm1 = KeyGenBroadcastMessage1 { com };
-        (bcm1, blind_factor)
+        (bcm1, KeyGenDecommitMessage1 {
+            blind_factor,
+            y_i: self.keypair.public_key.clone()
+        })
     }
 
     pub fn phase1_verify_com_phase2_distribute(
@@ -120,11 +133,14 @@ impl Keys {
         if !correct_key_correct_decom_all {
             return Err(InvalidKey);
         }
-        Ok(VerifiableSS::share_at_indices(
+        
+        let nonZeroParties : Vec<NonZeroU16>= parties.iter().map(|x| NonZeroU16::new(*x).unwrap()).collect();
+        
+        Ok(VerifiableSS::<Ed25519>::share_at_indices(
             params.threshold,
             params.share_count,
             &self.keypair.expended_private_key.private_key,
-            parties,
+            nonZeroParties,
         ))
     }
 
@@ -255,11 +271,13 @@ impl EphemeralKey {
             return Err(InvalidKey);
         }
 
+        let nonZeroParties : Vec<NonZeroU16>= parties.iter().map(|x| NonZeroU16::new(*x).unwrap()).collect();
+
         Ok(VerifiableSS::share_at_indices(
             params.threshold,
             params.share_count,
             &self.r_i,
-            parties,
+            nonZeroParties,
         ))
     }
 

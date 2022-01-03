@@ -15,8 +15,8 @@ mod tests {
     use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
     use curv::elliptic::curves::{Ed25519, Point};
     use itertools::{izip, Itertools};
-    use protocols::tests::{deterministic_fast_rand, verify_dalek};
-    use protocols::thresholdsig::{
+    use crate::protocols::tests::{deterministic_fast_rand, verify_dalek};
+    use crate::protocols::thresholdsig::{
         self, EphemeralKey, EphemeralSharedKeys, Keys, LocalSig, Parameters, SharedKeys,
     };
     use rand::{Rng, RngCore};

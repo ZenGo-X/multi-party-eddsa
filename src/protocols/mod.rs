@@ -30,13 +30,13 @@ pub mod thresholdsig;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExpendedPrivateKey {
     pub prefix: Scalar<Ed25519>,
-    private_key: Scalar<Ed25519>,
+    pub private_key: Scalar<Ed25519>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExpendedKeyPair {
     pub public_key: Point<Ed25519>,
-    expended_private_key: ExpendedPrivateKey,
+    pub expended_private_key: ExpendedPrivateKey,
 }
 
 impl ExpendedKeyPair {
@@ -112,7 +112,7 @@ pub(crate) mod tests {
     use rand_xoshiro::rand_core::{RngCore, SeedableRng};
     use rand_xoshiro::Xoshiro256PlusPlus;
 
-    use protocols::{ExpendedKeyPair, Signature};
+    use crate::protocols::{ExpendedKeyPair, Signature};
 
     pub fn verify_dalek(pk: &Point<Ed25519>, sig: &Signature, msg: &[u8]) -> bool {
         let mut sig_bytes = [0u8; 64];
