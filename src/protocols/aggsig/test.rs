@@ -32,7 +32,7 @@ mod tests {
     use protocols::{
         aggsig::{self, KeyAgg},
         tests::verify_dalek,
-        ExpendedKeyPair, Signature,
+        ExpandedKeyPair, Signature,
     };
 
     #[test]
@@ -44,7 +44,7 @@ mod tests {
             "c7d17a93f129527bf7ca413f34a0f23c8462a9c3a3edd4f04550a43cdd60b27a";
         let expected_pubkey = decode(expected_pubkey_hex).unwrap();
 
-        let party1_keys = ExpendedKeyPair::create_from_private_key(priv_dec);
+        let party1_keys = ExpandedKeyPair::create_from_private_key(priv_dec);
         let mut pubkey = party1_keys.public_key.y_coord().unwrap().to_bytes();
         // Reverse is requried because bigInt returns hex in big endian while pubkeys are usually little endian.
         pubkey.reverse();
@@ -63,7 +63,7 @@ mod tests {
             for _ in 0..20 {
                 rng.fill_bytes(&mut privkey);
                 rng.fill_bytes(msg);
-                let keypair = ExpendedKeyPair::create_from_private_key(privkey);
+                let keypair = ExpandedKeyPair::create_from_private_key(privkey);
                 let signature = aggsig::sign_single(msg, &keypair);
                 assert!(verify_dalek(&keypair.public_key, &signature, msg));
             }
@@ -88,7 +88,7 @@ mod tests {
                 let keypairs: Vec<_> = privkeys
                     .iter()
                     .copied()
-                    .map(ExpendedKeyPair::create_from_private_key)
+                    .map(ExpandedKeyPair::create_from_private_key)
                     .collect();
                 let pubkeys_list: Vec<_> = keypairs.iter().map(|k| k.public_key.clone()).collect();
 
@@ -145,7 +145,7 @@ mod tests {
     #[test]
     fn test_ed25519_one_party() {
         let message: [u8; 4] = [79, 77, 69, 82];
-        let party1_keys = ExpendedKeyPair::create();
+        let party1_keys = ExpandedKeyPair::create();
         let signature = aggsig::sign_single(&message, &party1_keys);
         assert!(signature.verify(&message, &party1_keys.public_key).is_ok());
     }
@@ -162,8 +162,8 @@ mod tests {
         let message: [u8; 4] = [79, 77, 69, 82];
 
         // round 0: generate signing keys
-        let party1_key = ExpendedKeyPair::create();
-        let party2_key = ExpendedKeyPair::create();
+        let party1_key = ExpandedKeyPair::create();
+        let party2_key = ExpandedKeyPair::create();
 
         // round 1: send commitments to ephemeral public keys
         let (party1_ephemeral_key, party1_sign_first_message, party1_sign_second_message) =
@@ -231,9 +231,9 @@ mod tests {
         let message: [u8; 4] = [79, 77, 69, 82];
 
         // round 0: generate signing keys
-        let party1_key = ExpendedKeyPair::create();
-        let party2_key = ExpendedKeyPair::create();
-        let party3_key = ExpendedKeyPair::create();
+        let party1_key = ExpandedKeyPair::create();
+        let party2_key = ExpandedKeyPair::create();
+        let party3_key = ExpandedKeyPair::create();
 
         // round 1: send commitments to ephemeral public keys
         let (party1_ephemeral_key, party1_sign_first_message, party1_sign_second_message) =
