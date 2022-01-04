@@ -21,6 +21,7 @@ pub struct PublicKeyAgg {
 }
 
 impl PublicKeyAgg {
+    #[allow(clippy::unnecessary_sort_by)]
     pub fn key_aggregation_n(
         mut public_keys: Vec<Point<Ed25519>>,
         my_public_key: &Point<Ed25519>,

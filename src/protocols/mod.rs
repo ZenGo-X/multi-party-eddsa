@@ -131,6 +131,7 @@ pub(crate) mod tests {
     /// if a test fails, pass in the printed seed to reproduce.
     pub fn deterministic_fast_rand(name: &str, seed: Option<u64>) -> impl Rng {
         let seed = seed.unwrap_or_else(|| thread_rng().gen());
+        println!("{} seed: {}", name, seed);
         Xoshiro256PlusPlus::seed_from_u64(seed)
     }
 
