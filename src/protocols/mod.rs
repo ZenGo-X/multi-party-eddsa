@@ -84,14 +84,9 @@ impl Signature {
         let R_plus_kA = &kA + &self.R;
         let sG = &self.s * Point::generator();
 
-        println!("VERIFY: sG - R = {:?}", (&sG - &self.R));
-        println!("VERIFY: kA = {:?}", kA);
-        // assert!((&sG - &self.R) == kA);
         if R_plus_kA == sG {
             Ok(())
         } else {
-            println!("Verify: R_plus_kA = {:?}", R_plus_kA.to_bytes(false).len());
-            println!("Verify: sG = {:?}", sG.to_bytes(false).len());
             Err(ProofError)
         }
     }
@@ -135,7 +130,6 @@ pub(crate) mod tests {
     /// if a test fails, pass in the printed seed to reproduce.
     pub fn deterministic_fast_rand(name: &str, seed: Option<u64>) -> impl Rng {
         let seed = seed.unwrap_or_else(|| thread_rng().gen());
-        println!("{} seed: {}", name, seed);
         Xoshiro256PlusPlus::seed_from_u64(seed)
     }
 

@@ -35,7 +35,7 @@ impl PublicKeyAgg {
                 .gt(&public_keys[0].to_bytes(false))
             {
                 second_public_key = public_key;
-                continue;
+                break;
             }
         }
 
@@ -93,9 +93,6 @@ pub fn generate_partial_nonces(
     });
     let R: [Point<Ed25519>; NUMBER_OF_NONCES] =
         r.clone().map(|scalar| Point::generator() * &scalar);
-    println!("r0: {:?} - {:?}", r[0].to_bytes().len(), r[0]);
-    println!("r1: {:?} - {:?}", r[1].to_bytes().len(), r[1]);
-    println!("------------------------------------");
     PartialNonces { r, R }
 }
 
@@ -117,7 +114,6 @@ pub fn partial_sign(
             accumulator
         }
     );
-    println!("R: {:?}", R);
 
     // Compute b as hash of nonces
     let mut hasher = Sha512::new()
@@ -128,7 +124,6 @@ pub fn partial_sign(
     }
     hasher.update(message);
     let b: Scalar<Ed25519> = hasher.result_scalar();
-    println!("b: {:?}", b);
     
     // Compute effective nonce
     let (effective_R, effective_r, _) = R[1..]
@@ -146,19 +141,14 @@ pub fn partial_sign(
             },
         );
     
-    println!("effective_R: {:?}", effective_R); 
-    println!("effective_r: {:?}", effective_r); 
     // Compute Fiat-Shamir challenge of signature
     let sig_challenge = Signature::k(&effective_R, &agg_public_key.agg_public_key, message);
-    println!("sig_challenge: {:?}", sig_challenge);
 
     // Computes the partial signature
     let partial_signature: Scalar<Ed25519> = sig_challenge
         * &agg_public_key.musig_coefficient
         * &my_keypair.expanded_private_key.private_key
         + effective_r;
-    
-    println!("partial_signature: {:?}", partial_signature);
     
     PartialSignature {
         R: effective_R,
