@@ -10,7 +10,6 @@
     version 3 of the License, or (at your option) any later version.
     @license GPL-3.0+ <https://github.com/KZen-networks/multi-party-eddsa/blob/master/LICENSE>
 */
-use std::num::NonZeroU16;
 use crate::Error::{self, InvalidKey, InvalidSS};
 
 use curv::arithmetic::traits::*;
@@ -20,7 +19,7 @@ use curv::cryptographic_primitives::hashing::DigestExt;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::{SecretShares, VerifiableSS};
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
-use crate::protocols::{ExpendedKeyPair, Signature};
+use crate::protocols::{ExpendedKeyPair, FE, GE, Signature};
 use rand::{thread_rng, Rng};
 use sha2::{digest::Digest, Sha512};
 
@@ -41,7 +40,7 @@ pub struct KeyGenBroadcastMessage1 {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyGenDecommitMessage1 {
     pub blind_factor: BigInt,
-    pub y_i: Point<Ed25519>,
+    pub y_i: GE,
 }
 
 #[derive(Debug)]
@@ -51,9 +50,9 @@ pub struct Parameters {
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SharedKeys {
-    pub y: Point<Ed25519>,
-    pub x_i: Scalar<Ed25519>,
-    prefix: Scalar<Ed25519>,
+    pub y: GE,
+    pub x_i: FE,
+    pub prefix: FE,
 }
 
 pub struct EphemeralKey {
@@ -134,13 +133,11 @@ impl Keys {
             return Err(InvalidKey);
         }
         
-        let nonZeroParties : Vec<NonZeroU16>= parties.iter().map(|x| NonZeroU16::new(*x).unwrap()).collect();
-        
         Ok(VerifiableSS::<Ed25519>::share_at_indices(
             params.threshold,
             params.share_count,
             &self.keypair.expended_private_key.private_key,
-            nonZeroParties,
+            parties,
         ))
     }
 
@@ -271,13 +268,11 @@ impl EphemeralKey {
             return Err(InvalidKey);
         }
 
-        let nonZeroParties : Vec<NonZeroU16>= parties.iter().map(|x| NonZeroU16::new(*x).unwrap()).collect();
-
         Ok(VerifiableSS::share_at_indices(
             params.threshold,
             params.share_count,
             &self.r_i,
-            nonZeroParties,
+            parties,
         ))
     }
 

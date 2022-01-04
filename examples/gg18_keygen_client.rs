@@ -8,7 +8,6 @@ use curv::{arithmetic::traits::Converter, cryptographic_primitives::{
 use multi_party_eddsa::protocols::thresholdsig::{
     KeyGenBroadcastMessage1, KeyGenDecommitMessage1, Keys, Parameters,
 };
-use paillier::EncryptionKey;
 use reqwest::Client;
 use std::{env, fs, time};
 use curv::elliptic::curves::{Ed25519, Point, Scalar};

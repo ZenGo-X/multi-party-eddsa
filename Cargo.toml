@@ -6,13 +6,13 @@ authors = [
     "Gary <gary@kzencorp.com>"
 ]
 
-edition="2021"
+edition="2018"
 
 [lib]
 crate-type = ["rlib", "dylib"]
 
 [dependencies]
-curv = { package = "curv-kzen", version = "0.9", default-features = false, path="/Users/hrezaei/codes/rust/curv" }
+curv = { package = "curv-kzen", version = "0.9", default-features = false }
 hex = "0.3.2"
 serde = "1.0"
 serde_json = "1.0"
@@ -20,18 +20,6 @@ serde_derive = "1.0"
 rand = "0.8"
 sha2 = "0.9"
 zeroize = "1"
-
-
-[dependencies.zk-paillier]
-path = "../zk-paillier"
-package = "zk-paillier"
-default-features = false
-
-[dependencies.paillier]
-#version = "0.4.2"
-path = "../rust-paillier"
-package = "kzen-paillier"
-default-features = false
 
 
 [dev-dependencies]
