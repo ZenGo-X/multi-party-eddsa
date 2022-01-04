@@ -86,7 +86,7 @@ impl Signature {
 
         println!("VERIFY: sG - R = {:?}", (&sG - &self.R));
         println!("VERIFY: kA = {:?}", kA);
-        assert!((&sG - &self.R) == kA);
+        // assert!((&sG - &self.R) == kA);
         if R_plus_kA == sG {
             Ok(())
         } else {

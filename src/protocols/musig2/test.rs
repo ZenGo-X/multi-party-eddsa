@@ -72,7 +72,7 @@ mod tests {
 
                 // Aggregate the public keys
                 let agg_pub_keys: Vec<_> = (0..signers)
-                    .map(|i| PublicKeyAgg::key_aggregation_n(pubkeys_list.clone(), i))
+                    .map(|i| PublicKeyAgg::key_aggregation_n(pubkeys_list.clone(), &pubkeys_list[i]))
                     .collect();
 
                 // Make sure all parties generated the same aggregated public key
@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn test_multiparty_signing_for_two_parties() {
         let mut rng = deterministic_fast_rand("test_multiparty_signing_for_two_parties", None);
-        for _i in 0..1 {
+        for _i in 0..300 {
             test_multiparty_signing_for_two_parties_internal(&mut rng);
         }
     }
@@ -165,8 +165,8 @@ mod tests {
 
         // compute aggregated public key:
         let pks = vec![party0_key.public_key.clone(), party1_key.public_key.clone()];
-        let party0_key_agg = PublicKeyAgg::key_aggregation_n(pks.clone(), 0);
-        let party1_key_agg = PublicKeyAgg::key_aggregation_n(pks, 1);
+        let party0_key_agg = PublicKeyAgg::key_aggregation_n(pks.clone(), &party0_key.public_key);
+        let party1_key_agg = PublicKeyAgg::key_aggregation_n(pks,&party1_key.public_key);
         assert_eq!(party0_key_agg.agg_public_key, party1_key_agg.agg_public_key);
         
         // Compute partial signatures

@@ -23,7 +23,7 @@ pub struct PublicKeyAgg {
 impl PublicKeyAgg {
     pub fn key_aggregation_n(
         mut public_keys: Vec<Point<Ed25519>>,
-        party_index: usize,
+        my_public_key: &Point<Ed25519>,
     ) -> PublicKeyAgg {
         let mut my_coeff = Scalar::zero();
         let mut sum = Point::zero();
@@ -41,8 +41,7 @@ impl PublicKeyAgg {
 
         public_keys
             .iter()
-            .enumerate()
-            .for_each(|(index, public_key)| {
+            .for_each(|public_key| {
                 let mut musig_coefficient: Scalar<Ed25519> = Scalar::from(1);
                 if public_key != second_public_key {
                     let mut hasher = Sha512::new().chain(&[1]).chain(&*public_key.to_bytes(true));
@@ -53,7 +52,7 @@ impl PublicKeyAgg {
                 }
 
                 let a_i = public_key * &musig_coefficient;
-                if index == party_index {
+                if public_key == my_public_key {
                     my_coeff = musig_coefficient;
                 }
                 sum = &sum + a_i
