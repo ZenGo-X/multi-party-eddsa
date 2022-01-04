@@ -182,7 +182,7 @@ mod tests {
         );
         let s1 = musig2::partial_sign(
             &[p0_partial_nonces.R],
-            p1_partial_nonces.clone(),
+            p1_partial_nonces,
             &party1_key_agg,
             &party1_key,
             &message,
