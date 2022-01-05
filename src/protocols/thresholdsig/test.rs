@@ -20,6 +20,7 @@ mod tests {
         self, EphemeralKey, EphemeralSharedKeys, Keys, LocalSig, Parameters, SharedKeys,
     };
     use rand::{Rng, RngCore};
+    use curv::BigInt;
 
     #[test]
     fn test_sign_threshold_verify_dalek_n1() {
@@ -231,10 +232,15 @@ mod tests {
         assert_eq!(parties.len(), usize::from(n));
         let keypairs: Vec<_> = parties.iter().copied().map(Keys::phase1_create).collect();
 
-        let (first_msgs, first_msg_blinds): (Vec<_>, Vec<_>) = keypairs
+        let (first_msgs, first_msg_decommits): (Vec<_>, Vec<_>) = keypairs
             .iter()
             .map(|keypair| Keys::phase1_broadcast_rng(keypair, rng))
             .unzip();
+
+        let blind_vec = first_msg_decommits
+            .iter()
+            .map(|decommit_msg| decommit_msg.blind_factor.clone())
+            .collect::<Vec<BigInt>>();
 
         let pubkeys_list: Vec<_> = keypairs
             .iter()
@@ -252,7 +258,7 @@ mod tests {
                 keypair
                     .phase1_verify_com_phase2_distribute(
                         &params,
-                        &first_msg_blinds,
+                        &blind_vec,
                         &pubkeys_list,
                         &first_msgs,
                         parties,
