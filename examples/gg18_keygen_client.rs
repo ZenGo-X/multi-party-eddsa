@@ -231,7 +231,7 @@ pub fn run_keygen(params: Params) {
         )
         .expect("invalid vss");
 
-    /*let dlog_proof = DLogProof::prove(&shared_keys.x_i);
+    let dlog_proof = DLogProof::prove(&shared_keys.x_i);
 
     // round 5: send dlog proof
     assert!(broadcast(
@@ -257,7 +257,6 @@ pub fn run_keygen(params: Params) {
         if i == party_num_int {
             dlog_proof_vec.push(dlog_proof.clone());
         } else {
-            println!("{}", &round5_ans_vec[j]);
             let dlog_proof_j: DLogProof<Ed25519, Sha512> = serde_json::from_str(&round5_ans_vec[j]).unwrap();
 
             dlog_proof_vec.push(dlog_proof_j);
@@ -266,7 +265,7 @@ pub fn run_keygen(params: Params) {
     }
     verify_dlog_proofs(&params, &dlog_proof_vec, &point_vec)
         .expect("bad dlog proof");
-*/
+
     //save key to file:
     /*let paillier_key_vec = (0..PARTIES)
         .map(|i| bc1_vec[i as usize].e.clone())
