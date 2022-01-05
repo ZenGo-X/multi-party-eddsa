@@ -40,4 +40,4 @@ default = ["curv/rust-gmp-kzen"]
 name = "sm_manager"
 
 [[example]]
-name = "eph_sign_client"
+name = "sign_client"
