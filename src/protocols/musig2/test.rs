@@ -71,7 +71,12 @@ mod tests {
                 // Aggregate the public keys
                 let agg_pub_keys: Vec<_> = pubkeys_list
                     .iter()
-                    .map(|pubkey| PublicKeyAgg::key_aggregation_n(pubkeys_list.clone(), pubkey))
+                    .map(|pubkey| {
+                        match PublicKeyAgg::key_aggregation_n(pubkeys_list.clone(), pubkey) {
+                            Some(agg_pub_key) => agg_pub_key,
+                            None => panic!("Missing party public key in key aggregation!"),
+                        }
+                    })
                     .collect();
 
                 // Make sure all parties generated the same aggregated public key
@@ -80,12 +85,16 @@ mod tests {
                     .all(|agg_key| agg_key.agg_public_key == agg_pub_keys[0].agg_public_key));
 
                 // Generate the first messages - (partial nonces)
-                let partial_nonces: Vec<_> = keypairs
+                let (private_partial_nonces, public_partial_nonces): (Vec<_>, Vec<_>) = keypairs
                     .iter()
                     .map(|keypair| {
-                        musig2::generate_partial_nonces(keypair, Option::Some(msg), &mut rng)
+                        musig2::generate_partial_nonces_internal(
+                            keypair,
+                            Option::Some(msg),
+                            &mut rng,
+                        )
                     })
-                    .collect();
+                    .unzip();
                 // Send partial nonces to everyone and wait to receive everyone else's
 
                 // Compute partial signatures
@@ -93,16 +102,17 @@ mod tests {
                     .iter()
                     .enumerate()
                     .map(|(index, keypair)| {
-                        let mut partial_nonces_without_signer = partial_nonces.clone();
-                        let my_partial_nonces = partial_nonces_without_signer.remove(index);
-                        let partial_nonce_slice = partial_nonces_without_signer
+                        let mut pub_partial_nonces_without_signer = public_partial_nonces.clone();
+                        let my_pub_partial_nonces = pub_partial_nonces_without_signer.remove(index);
+                        let partial_nonce_slice = pub_partial_nonces_without_signer
                             .iter()
                             .map(|partial_nonce| partial_nonce.R.clone())
                             .collect::<Vec<_>>();
 
                         musig2::partial_sign(
                             partial_nonce_slice.as_slice(),
-                            my_partial_nonces,
+                            private_partial_nonces[index].clone(),
+                            my_pub_partial_nonces,
                             &agg_pub_keys[index],
                             keypair,
                             msg,
@@ -162,27 +172,36 @@ mod tests {
         let party0_key = ExpandedKeyPair::create();
         let party1_key = ExpandedKeyPair::create();
 
-        let p0_partial_nonces =
-            musig2::generate_partial_nonces(&party0_key, Option::Some(&message), rng);
-        let p1_partial_nonces =
-            musig2::generate_partial_nonces(&party1_key, Option::Some(&message), rng);
+        let (p0_private_nonces, p0_public_nonces) =
+            musig2::generate_partial_nonces_internal(&party0_key, Option::Some(&message), rng);
+        let (p1_private_nonces, p1_public_nonces) =
+            musig2::generate_partial_nonces_internal(&party1_key, Option::Some(&message), rng);
 
         // compute aggregated public key:
         let pks = vec![party0_key.public_key.clone(), party1_key.public_key.clone()];
-        let party0_key_agg = PublicKeyAgg::key_aggregation_n(pks.clone(), &party0_key.public_key);
-        let party1_key_agg = PublicKeyAgg::key_aggregation_n(pks, &party1_key.public_key);
+        let party0_key_agg =
+            match PublicKeyAgg::key_aggregation_n(pks.clone(), &party0_key.public_key) {
+                Some(pub_key_agg1) => pub_key_agg1,
+                None => panic!("Missing party public key in key aggregation!"),
+            };
+        let party1_key_agg = match PublicKeyAgg::key_aggregation_n(pks, &party1_key.public_key) {
+            Some(pub_key_agg2) => pub_key_agg2,
+            None => panic!("Missing party public key in key aggregation!"),
+        };
         assert_eq!(party0_key_agg.agg_public_key, party1_key_agg.agg_public_key);
         // Compute partial signatures
         let s0 = musig2::partial_sign(
-            &[p1_partial_nonces.R.clone()],
-            p0_partial_nonces.clone(),
+            &[p1_public_nonces.R.clone()],
+            p0_private_nonces,
+            p0_public_nonces.clone(),
             &party0_key_agg,
             &party0_key,
             &message,
         );
         let s1 = musig2::partial_sign(
-            &[p0_partial_nonces.R],
-            p1_partial_nonces,
+            &[p0_public_nonces.R],
+            p1_private_nonces,
+            p1_public_nonces,
             &party1_key_agg,
             &party1_key,
             &message,
