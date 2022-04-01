@@ -18,13 +18,12 @@
 mod tests {
 
     use curv::arithmetic::Converter;
-    use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
     use curv::cryptographic_primitives::hashing::merkle_tree::MT256;
-    use curv::cryptographic_primitives::hashing::traits::Hash;
-    use curv::elliptic::curves::ed25519::{FE, GE};
-    use curv::elliptic::curves::traits::ECScalar;
+    use curv::cryptographic_primitives::hashing::DigestExt;
+    use curv::elliptic::curves::Scalar;
     use curv::BigInt;
     use protocols::multisig::{partial_sign, verify, EphKey, Keys, Signature};
+    use sha2::{digest::Digest, Sha256};
 
     #[test]
     fn two_party_key_gen() {
@@ -36,12 +35,12 @@ mod tests {
     fn two_party_key_gen_internal() {
         let message_vec = vec![79, 77, 69, 82];
         let message_bn = BigInt::from_bytes(&message_vec[..]);
-        let message = HSha256::create_hash(&vec![&message_bn]);
+        let message = Sha256::new().chain_bigint(&message_bn).result_bigint();
 
         // party1 key gen:
         let keys_1 = Keys::create();
 
-        keys_1.clone().I.update_key_pair(FE::zero());
+        keys_1.clone().I.update_key_pair(Scalar::zero());
 
         let broadcast1 = Keys::broadcast(keys_1.clone());
         // party2 key gen:
@@ -61,9 +60,9 @@ mod tests {
         // merkle tree (in case needed)
 
         let ge_vec = vec![(keys_1.I.public_key).clone(), (keys_2.I.public_key).clone()];
-        let mt256 = MT256::create_tree(&ge_vec);
-        let proof1 = mt256.gen_proof_for_ge(&keys_1.I.public_key);
-        let proof2 = mt256.gen_proof_for_ge(&keys_2.I.public_key);
+        let mt256 = MT256::<_, Sha256>::create_tree(ge_vec);
+        let proof1 = mt256.build_proof(keys_1.I.public_key.clone()).unwrap();
+        let proof2 = mt256.build_proof(keys_2.I.public_key.clone()).unwrap();
         let root = mt256.get_root();
 
         //TODO: reduce number of clones.
@@ -86,7 +85,7 @@ mod tests {
         let sig = Signature::set_signature(&Xt, &y);
         assert!(verify(&It, &sig, &es).is_ok());
 
-        assert!(MT256::<GE>::validate_proof(&proof1, root).is_ok());
-        assert!(MT256::<GE>::validate_proof(&proof2, root).is_ok());
+        assert!(proof1.verify(&root).is_ok());
+        assert!(proof2.verify(&root).is_ok());
     }
 }

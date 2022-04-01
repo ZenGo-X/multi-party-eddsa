@@ -19,7 +19,16 @@ extern crate curv;
 extern crate hex;
 #[macro_use]
 extern crate serde_derive;
+extern crate rand;
 extern crate serde_json;
+extern crate sha2;
+
+#[cfg(test)]
+extern crate ed25519_dalek;
+#[cfg(test)]
+extern crate itertools;
+#[cfg(test)]
+extern crate rand_xoshiro;
 
 pub mod protocols;
 
