@@ -31,24 +31,24 @@ pub mod multisig;
 pub mod thresholdsig;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ExpendedPrivateKey {
+pub struct ExpandedPrivateKey {
     pub prefix: Scalar<Ed25519>,
     pub private_key: Scalar<Ed25519>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ExpendedKeyPair {
+pub struct ExpandedKeyPair {
     pub public_key: Point<Ed25519>,
-    pub expended_private_key: ExpendedPrivateKey,
+    pub expanded_private_key: ExpandedPrivateKey,
 }
 
-impl ExpendedKeyPair {
-    pub fn create() -> ExpendedKeyPair {
+impl ExpandedKeyPair {
+    pub fn create() -> ExpandedKeyPair {
         let secret = thread_rng().gen();
         Self::create_from_private_key(secret)
     }
 
-    pub fn create_from_private_key(secret: [u8; 32]) -> ExpendedKeyPair {
+    pub fn create_from_private_key(secret: [u8; 32]) -> ExpandedKeyPair {
         let h = Sha512::new().chain(secret).finalize();
         let mut private_key: [u8; 32] = [0u8; 32];
         let mut prefix: [u8; 32] = [0u8; 32];
@@ -61,9 +61,9 @@ impl ExpendedKeyPair {
             .expect("private_key is the right length, so can't fail");
         let prefix = Scalar::from_bytes(&prefix).expect("prefix is the right, so can't fail");
         let public_key = Point::generator() * &private_key;
-        ExpendedKeyPair {
+        ExpandedKeyPair {
             public_key,
-            expended_private_key: ExpendedPrivateKey {
+            expanded_private_key: ExpandedPrivateKey {
                 prefix,
                 private_key,
             },
@@ -115,7 +115,7 @@ pub(crate) mod tests {
     use rand_xoshiro::rand_core::{RngCore, SeedableRng};
     use rand_xoshiro::Xoshiro256PlusPlus;
 
-    use crate::protocols::{ExpendedKeyPair, Signature};
+    use crate::protocols::{ExpandedKeyPair, Signature};
 
     pub fn verify_dalek(pk: &Point<Ed25519>, sig: &Signature, msg: &[u8]) -> bool {
         let mut sig_bytes = [0u8; 64];
@@ -143,7 +143,7 @@ pub(crate) mod tests {
         let mut privkey = [0u8; 32];
         for _ in 0..4096 {
             rng.fill_bytes(&mut privkey);
-            let zengo_keypair = ExpendedKeyPair::create_from_private_key(privkey);
+            let zengo_keypair = ExpandedKeyPair::create_from_private_key(privkey);
             let dalek_secret = ed25519_dalek::SecretKey::from_bytes(&privkey)
                 .expect("Can only fail if bytes.len()<32");
             let dalek_pub = ed25519_dalek::PublicKey::from(&dalek_secret);

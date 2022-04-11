@@ -19,7 +19,7 @@
 //!
 //! See https://tools.ietf.org/html/rfc8032
 
-use super::ExpendedKeyPair;
+use super::ExpandedKeyPair;
 
 pub use curv::arithmetic::traits::Samplable;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
@@ -81,14 +81,14 @@ pub struct SignSecondMsg {
 }
 
 pub fn create_ephemeral_key_and_commit(
-    keys: &ExpendedKeyPair,
+    keys: &ExpandedKeyPair,
     message: &[u8],
 ) -> (EphemeralKey, SignFirstMsg, SignSecondMsg) {
     create_ephemeral_key_and_commit_rng(keys, message, &mut thread_rng())
 }
 
 fn create_ephemeral_key_and_commit_rng(
-    keys: &ExpendedKeyPair,
+    keys: &ExpandedKeyPair,
     message: &[u8],
     rng: &mut impl Rng,
 ) -> (EphemeralKey, SignFirstMsg, SignSecondMsg) {
@@ -96,7 +96,7 @@ fn create_ephemeral_key_and_commit_rng(
     // to the nonce
     let r = Sha512::new()
         .chain(&[2])
-        .chain(&*keys.expended_private_key.prefix.to_bytes())
+        .chain(&*keys.expanded_private_key.prefix.to_bytes())
         .chain(message)
         .chain(rng.gen::<[u8; 32]>())
         .result_scalar();
@@ -123,7 +123,7 @@ pub fn partial_sign(
     msg: &[u8],
 ) -> Signature {
     let k = Signature::k(R_tot, agg_pubkey, msg);
-    let k_mul_sk = k * &keys.expended_private_key.private_key;
+    let k_mul_sk = k * &keys.expanded_private_key.private_key;
     let k_mul_sk_mul_ai = k_mul_sk * a;
     let s = r + k_mul_sk_mul_ai;
     Signature {
@@ -132,15 +132,15 @@ pub fn partial_sign(
     }
 }
 
-pub fn sign_single(message: &[u8], keys: &ExpendedKeyPair) -> Signature {
+pub fn sign_single(message: &[u8], keys: &ExpandedKeyPair) -> Signature {
     let r = Sha512::new()
-        .chain(&*keys.expended_private_key.prefix.to_bytes())
+        .chain(&*keys.expanded_private_key.prefix.to_bytes())
         .chain(message)
         .result_scalar();
     let R = &r * Point::generator();
     let k = Signature::k(&R, &keys.public_key, message);
 
-    let k_mul_sk = k * &keys.expended_private_key.private_key;
+    let k_mul_sk = k * &keys.expanded_private_key.private_key;
     let s = r + k_mul_sk;
     Signature { R, s }
 }

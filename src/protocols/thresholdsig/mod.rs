@@ -19,7 +19,7 @@ use curv::cryptographic_primitives::hashing::DigestExt;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::{SecretShares, VerifiableSS};
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
-use crate::protocols::{ExpendedKeyPair, FE, GE, Signature};
+use crate::protocols::{ExpandedKeyPair, FE, GE, Signature};
 use rand::{thread_rng, Rng};
 use sha2::{digest::Digest, Sha512};
 
@@ -28,7 +28,7 @@ const SECURITY: usize = 256;
 // u_i is private key and {u__i, prefix} are extended private key.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Keys {
-    pub keypair: ExpendedKeyPair,
+    pub keypair: ExpandedKeyPair,
     pub party_index: u16,
 }
 
@@ -76,14 +76,14 @@ pub struct LocalSig {
 impl Keys {
     pub fn phase1_create(party_index: u16) -> Keys {
         Keys {
-            keypair: ExpendedKeyPair::create(),
+            keypair: ExpandedKeyPair::create(),
             party_index,
         }
     }
 
     pub fn phase1_create_from_private_key(party_index: u16, secret: [u8; 32]) -> Keys {
         Keys {
-            keypair: ExpendedKeyPair::create_from_private_key(secret),
+            keypair: ExpandedKeyPair::create_from_private_key(secret),
             party_index,
         }
     }
@@ -136,7 +136,7 @@ impl Keys {
         Ok(VerifiableSS::<Ed25519>::share_at_indices(
             params.threshold,
             params.share_count,
-            &self.keypair.expended_private_key.private_key,
+            &self.keypair.expanded_private_key.private_key,
             parties,
         ))
     }
@@ -172,7 +172,7 @@ impl Keys {
         Ok(SharedKeys {
             y,
             x_i,
-            prefix: self.keypair.expended_private_key.prefix.clone(),
+            prefix: self.keypair.expanded_private_key.prefix.clone(),
         })
     }
 }
@@ -203,7 +203,7 @@ impl EphemeralKey {
         // here we deviate from the spec, by introducing  non-deterministic element (random number)
         // to the nonce
         let r_i = Sha512::new()
-            .chain_scalar(&keys.keypair.expended_private_key.prefix)
+            .chain_scalar(&keys.keypair.expanded_private_key.prefix)
             .chain(message)
             .chain(rng.gen::<[u8; 32]>())
             .result_scalar();

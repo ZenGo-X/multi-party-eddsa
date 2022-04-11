@@ -18,7 +18,7 @@
 //!
 //See (https://pdfs.semanticscholar.org/6bf4/f9450e7a8e31c106a8670b961de4735589cf.pdf)
 
-use super::ExpendedKeyPair;
+use super::ExpandedKeyPair;
 
 use curv::cryptographic_primitives::hashing::DigestExt;
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
@@ -30,7 +30,7 @@ use sha2::{digest::Digest, Sha512};
 // I is a private key and public key keypair, X is a commitment of the form X = xG used only in key generation (see p11 in the paper)
 #[derive(Debug, Clone)]
 pub struct Keys {
-    pub I: ExpendedKeyPair,
+    pub I: ExpandedKeyPair,
     pub X: SingleKeyPair,
 }
 
@@ -60,29 +60,29 @@ impl SingleKeyPair {
     }
 }
 
-impl ExpendedKeyPair {
+impl ExpandedKeyPair {
     pub fn update_key_pair(&mut self, to_add: Scalar<Ed25519>) {
-        self.expended_private_key.private_key = to_add + &self.expended_private_key.private_key;
+        self.expanded_private_key.private_key = to_add + &self.expanded_private_key.private_key;
         let g = Point::generator();
-        self.public_key = g * &self.expended_private_key.private_key;
+        self.public_key = g * &self.expanded_private_key.private_key;
     }
 }
 
 impl Keys {
     pub fn create() -> Keys {
-        let I = ExpendedKeyPair::create();
+        let I = ExpandedKeyPair::create();
         let X = SingleKeyPair::create();
         Keys { I, X }
     }
 
     pub fn create_from_private_keys(priv_I: [u8; 32], priv_X: Scalar<Ed25519>) -> Keys {
-        let I = ExpendedKeyPair::create_from_private_key(priv_I);
+        let I = ExpandedKeyPair::create_from_private_key(priv_I);
         let X = SingleKeyPair::create_from_private_key(priv_X);
         Keys { I, X }
     }
 
     pub fn create_from(secret_share: [u8; 32]) -> Keys {
-        let I = ExpendedKeyPair::create_from_private_key(secret_share);
+        let I = ExpandedKeyPair::create_from_private_key(secret_share);
         let X = SingleKeyPair::create();
         Keys { I, X }
     }
@@ -108,7 +108,7 @@ impl Keys {
 }
 
 pub fn partial_sign(keys: &Keys, e: Scalar<Ed25519>) -> Scalar<Ed25519> {
-    e * &keys.I.expended_private_key.private_key + &keys.X.private_key
+    e * &keys.I.expanded_private_key.private_key + &keys.X.private_key
 }
 
 pub fn verify<'a>(I: &Point<Ed25519>, sig: &Signature, e: &Scalar<Ed25519>) -> Result<(), &'a str> {
@@ -141,11 +141,11 @@ pub struct EphKey {
 
 impl EphKey {
     //signing step 1
-    pub fn gen_commit(key_gen_key_pair: &ExpendedKeyPair, message: &BigInt) -> EphKey {
+    pub fn gen_commit(key_gen_key_pair: &ExpandedKeyPair, message: &BigInt) -> EphKey {
         // here we deviate from the spec, by introducing  non-deterministic element (random number)
         // to the nonce
         let r = Sha512::new()
-            .chain_scalar(&key_gen_key_pair.expended_private_key.prefix)
+            .chain_scalar(&key_gen_key_pair.expanded_private_key.prefix)
             .chain_bigint(message)
             .chain_scalar(&Scalar::<Ed25519>::random())
             .result_bigint();
@@ -180,10 +180,10 @@ impl EphKey {
 
     pub fn partial_sign(
         &self,
-        local_keys: &ExpendedKeyPair,
+        local_keys: &ExpandedKeyPair,
         es: Scalar<Ed25519>,
     ) -> Scalar<Ed25519> {
-        es * &local_keys.expended_private_key.private_key + &self.eph_key_pair.private_key
+        es * &local_keys.expanded_private_key.private_key + &self.eph_key_pair.private_key
     }
 
     pub fn add_signature_parts(sig_vec: Vec<Scalar<Ed25519>>) -> Scalar<Ed25519> {
