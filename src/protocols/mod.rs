@@ -25,6 +25,7 @@ use sha2::{Digest, Sha512};
 // reference implementation: https://ed25519.cr.yp.to/python/ed25519.py
 pub mod aggsig;
 pub mod multisig;
+pub mod musig2;
 pub mod thresholdsig;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -56,7 +57,8 @@ impl ExpandedKeyPair {
         private_key[31] |= 64;
         let private_key = Scalar::from_bytes(&private_key)
             .expect("private_key is the right length, so can't fail");
-        let prefix = Scalar::from_bytes(&prefix).expect("prefix is the right, so can't fail");
+        let prefix =
+            Scalar::from_bytes(&prefix).expect("prefix is the right length, so can't fail");
         let public_key = Point::generator() * &private_key;
         ExpandedKeyPair {
             public_key,
@@ -80,7 +82,7 @@ impl Signature {
         let A = public_key;
 
         let kA = A * k;
-        let R_plus_kA = kA + &self.R;
+        let R_plus_kA = &kA + &self.R;
         let sG = &self.s * Point::generator();
 
         if R_plus_kA == sG {
