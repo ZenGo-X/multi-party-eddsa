@@ -19,7 +19,7 @@ use curv::cryptographic_primitives::hashing::DigestExt;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::{SecretShares, VerifiableSS};
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
-use crate::protocols::{ExpandedKeyPair, FE, GE, Signature};
+use crate::protocols::{ExpandedKeyPair, Signature};
 use rand::{thread_rng, Rng};
 use sha2::{digest::Digest, Sha512};
 
@@ -40,7 +40,7 @@ pub struct KeyGenBroadcastMessage1 {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyGenDecommitMessage1 {
     pub blind_factor: BigInt,
-    pub y_i: GE,
+    pub y_i: Point<Ed25519>,
 }
 
 #[derive(Debug)]
@@ -50,9 +50,9 @@ pub struct Parameters {
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SharedKeys {
-    pub y: GE,
-    pub x_i: FE,
-    pub prefix: FE,
+    pub y: Point<Ed25519>,
+    pub x_i: Scalar<Ed25519>,
+    pub prefix: Scalar<Ed25519>,
 }
 
 pub struct EphemeralKey {

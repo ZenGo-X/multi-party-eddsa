@@ -24,23 +24,23 @@ use super::ExpandedKeyPair;
 pub use curv::arithmetic::traits::Samplable;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives::hashing::DigestExt;
-use curv::elliptic::curves::{Point, Scalar};
+use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
 
 pub use curv::arithmetic::traits::Converter;
 use curv::cryptographic_primitives::commitments::traits::Commitment;
-use crate::protocols::{FE, GE, ProofError, Signature};
+use crate::protocols::{ProofError, Signature};
 use rand::{thread_rng, Rng};
 use sha2::{digest::Digest, Sha512};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyAgg {
-    pub apk: GE,
-    pub hash: FE,
+    pub apk: Point<Ed25519>,
+    pub hash: Scalar<Ed25519>,
 }
 
 impl KeyAgg {
-    pub fn key_aggregation_n(pks: &[GE], party_index: usize) -> KeyAgg {
+    pub fn key_aggregation_n(pks: &[Point<Ed25519>], party_index: usize) -> KeyAgg {
         let mut my_hash = Scalar::zero();
         let mut sum = Point::zero();
         pks.iter().enumerate().for_each(|(index, pk)| {
@@ -65,8 +65,8 @@ impl KeyAgg {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EphemeralKey {
-    pub r: FE,
-    pub R: GE,
+    pub r: Scalar<Ed25519>,
+    pub R: Point<Ed25519>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -76,7 +76,7 @@ pub struct SignFirstMsg {
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct SignSecondMsg {
-    pub R: GE,
+    pub R: Point<Ed25519>,
     pub blind_factor: BigInt,
 }
 
@@ -109,17 +109,17 @@ fn create_ephemeral_key_and_commit_rng(
         SignSecondMsg { R, blind_factor },
     )
 }
-pub fn get_R_tot(Rs: &[GE]) -> GE {
+pub fn get_R_tot(Rs: &[Point<Ed25519>]) -> Point<Ed25519> {
     let first = Rs[0].clone();
     Rs[1..].iter().fold(first, |acc, Ri| acc + Ri)
 }
 
 pub fn partial_sign(
-    r: &FE,
-    keys: &ExpendedKeyPair,
-    a: &FE,
-    R_tot: &GE,
-    agg_pubkey: &GE,
+    r: &Scalar<Ed25519>,
+    keys: &ExpandedKeyPair,
+    a: &Scalar<Ed25519>,
+    R_tot: &Point<Ed25519>,
+    agg_pubkey: &Point<Ed25519>,
     msg: &[u8],
 ) -> Signature {
     let k = Signature::k(R_tot, agg_pubkey, msg);
@@ -161,10 +161,10 @@ pub fn add_signature_parts(sigs: &[Signature]) -> Signature {
 pub fn verify_partial_sig(
     sig: &Signature,
     message: &[u8],
-    a: &FE,
-    partial_R: &GE,
-    partial_public_key: &GE,
-    agg_pubkey: &GE,
+    a: &Scalar<Ed25519>,
+    partial_R: &Point<Ed25519>,
+    partial_public_key: &Point<Ed25519>,
+    agg_pubkey: &Point<Ed25519>,
 ) -> Result<(), ProofError> {
     let k = Signature::k(&sig.R, agg_pubkey, message);
     let A = partial_public_key;

@@ -21,9 +21,6 @@ use curv::BigInt;
 use rand::{thread_rng, Rng};
 use sha2::{Digest, Sha512};
 
-pub type GE = Point<Ed25519>;
-pub type FE = Scalar<Ed25519>;
-
 // simple ed25519 based on rfc8032
 // reference implementation: https://ed25519.cr.yp.to/python/ed25519.py
 pub mod aggsig;
