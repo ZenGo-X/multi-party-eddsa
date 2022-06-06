@@ -4,15 +4,14 @@
 /// 2: cargo run from PARTIES number of terminals
 use curv::{arithmetic::traits::Converter, cryptographic_primitives::{
     proofs::sigma_dlog::DLogProof, secret_sharing::feldman_vss::VerifiableSS,
-}, elliptic::curves::ed25519::{FE, GE}, elliptic::curves::{ECPoint, ECScalar}, BigInt, HashChoice};
+}, BigInt};
 use multi_party_eddsa::protocols::thresholdsig::{
     KeyGenBroadcastMessage1, KeyGenDecommitMessage1, Keys, Parameters,
 };
 use reqwest::Client;
 use std::{env, fs, time};
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
-use curv::elliptic::curves::ed25519::Ed25519Scalar;
-use sha2::{Sha256, Sha512};
+use sha2::Sha512;
 
 mod common;
 use common::{

@@ -10,7 +10,7 @@ use super::{ExpandedKeyPair, Signature};
 use curv::arithmetic::Converter;
 use curv::elliptic::curves::{Ed25519, Point, Scalar};
 use curv::BigInt;
-use protocols::Rng;
+use crate::protocols::Rng;
 use sha2::{digest::Digest, Sha512};
 
 pub const NUMBER_OF_NONCES: usize = 2;

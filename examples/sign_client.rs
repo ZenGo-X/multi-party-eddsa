@@ -62,9 +62,9 @@ fn main() {
 }
 
 fn run_signer(key_file_path: String, params: Params, message_str:String) -> (Signature, Point<Ed25519>) {
-    ///
-    /// This function is written inspired from the
-    /// test function: protocols::thresholdsig::test::tests::test_t2_n5_sign_with_4_internal()
+    //
+    // This function is written inspired from the
+    // test function: protocols::thresholdsig::test::tests::test_t2_n5_sign_with_4_internal()
     //TODO Make sure this approach is valid for {t,n} multy party threshold EdDSA
     let message = match hex::decode(message_str.clone()) {
         Ok(x) => x,
