@@ -28,8 +28,8 @@ mod tests {
     use rand::{Rng, RngCore};
     use sha2::Sha512;
 
-    use protocols::tests::deterministic_fast_rand;
-    use protocols::{
+    use crate::protocols::tests::deterministic_fast_rand;
+    use crate::protocols::{
         aggsig::{self, KeyAgg},
         tests::verify_dalek,
         ExpandedKeyPair, Signature,

@@ -22,7 +22,7 @@ mod tests {
     use curv::cryptographic_primitives::hashing::DigestExt;
     use curv::elliptic::curves::Scalar;
     use curv::BigInt;
-    use protocols::multisig::{partial_sign, verify, EphKey, Keys, Signature};
+    use crate::protocols::multisig::{partial_sign, verify, EphKey, Keys, Signature};
     use sha2::{digest::Digest, Sha256};
 
     #[test]
