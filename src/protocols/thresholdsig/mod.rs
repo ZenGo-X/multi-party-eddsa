@@ -31,6 +31,7 @@ pub struct Keys {
     pub party_index: u16,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct KeyGenBroadcastMessage1 {
     com: BigInt,
 }
