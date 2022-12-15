@@ -60,6 +60,7 @@ pub struct EphemeralSharedKeys {
     pub r_i: Scalar<Ed25519>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LocalSig {
     gamma_i: Scalar<Ed25519>,
     k: Scalar<Ed25519>,
