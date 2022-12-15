@@ -47,7 +47,7 @@ pub struct SharedKeys {
     pub x_i: Scalar<Ed25519>,
     prefix: Scalar<Ed25519>,
 }
-
+#[derive(Clone, Serialize, Deserialize)]
 pub struct EphemeralKey {
     pub r_i: Scalar<Ed25519>,
     pub R_i: Point<Ed25519>,
