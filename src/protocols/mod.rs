@@ -31,13 +31,13 @@ pub mod thresholdsig;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExpandedPrivateKey {
     pub prefix: Scalar<Ed25519>,
-    private_key: Scalar<Ed25519>,
+    pub private_key: Scalar<Ed25519>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExpandedKeyPair {
     pub public_key: Point<Ed25519>,
-    expanded_private_key: ExpandedPrivateKey,
+    pub expanded_private_key: ExpandedPrivateKey,
 }
 
 impl ExpandedKeyPair {
