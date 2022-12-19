@@ -31,6 +31,7 @@ pub struct Keys {
     pub party_index: u16,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct KeyGenBroadcastMessage1 {
     com: BigInt,
 }
@@ -59,6 +60,7 @@ pub struct EphemeralSharedKeys {
     pub r_i: Scalar<Ed25519>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LocalSig {
     gamma_i: Scalar<Ed25519>,
     k: Scalar<Ed25519>,
